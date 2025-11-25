@@ -5,8 +5,8 @@ export default defineConfig(({ command }) => {
   const isDev = command === 'serve';
 
   return {
-    // 开发用绝对路径，打包用相对路径
-    base: isDev ? '/' : './',
+    // 开发用绝对路径，GitHub Pages 用仓库路径
+    base: isDev ? '/' : '/digital-twin-pro-2.0/',
     
     plugins: [react()],
     

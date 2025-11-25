@@ -16,13 +16,13 @@ export function extractFloorsFromJSON(jsonData) {
 
     // 创建地图ID到地图数据的映射
     const mapIdToData = {};
-    
+
     // 从 mapfileEntitys 中提取地图信息
     // 注意：这里假设每个地图对应一个楼层
     jsonData.mapfileEntitys.forEach((mapEntity, index) => {
         const record = mapEntity.record;
         const mapId = record.uid || `map_${index}`;
-        
+
         mapIdToData[mapId] = {
             id: mapId,
             name: record.name || record.alias || `地图${index + 1}`,
@@ -39,7 +39,7 @@ export function extractFloorsFromJSON(jsonData) {
     // 从 graphTopologys 中提取点位信息
     const graphTopology = jsonData.graphTopologys[0]; // 假设只有一个拓扑图
     const poses = graphTopology?.poses || [];
-    
+
     // 按 mapFileId 分组点位
     const mapFileIdToPoses = {};
     poses.forEach(pose => {
@@ -74,7 +74,7 @@ export function extractFloorsFromJSON(jsonData) {
                 }
             });
         });
-        
+
         // 选择出现次数最多的楼层
         let maxCount = 0;
         let detectedFloor = '1'; // 默认为1楼
@@ -84,7 +84,7 @@ export function extractFloorsFromJSON(jsonData) {
                 detectedFloor = floorNum;
             }
         });
-        
+
         mapFileIdToFloor[mapFileId] = detectedFloor;
     });
 
@@ -94,7 +94,7 @@ export function extractFloorsFromJSON(jsonData) {
 
     Object.entries(mapFileIdToPoses).forEach(([mapFileId, posesArray]) => {
         const floorNum = mapFileIdToFloor[mapFileId] || '1';
-        
+
         if (!floorMap[floorNum]) {
             floorMap[floorNum] = {
                 id: floorNum,
@@ -128,14 +128,14 @@ export function poseToWaypoint(pose, mapData) {
     // ROS 坐标系到 Three.js 坐标系的转换
     // ROS: x向前, y向左, z向上
     // Three.js: x向右, y向上, z向前
-    
+
     const x = pose.x;
     const z = -pose.y; // ROS的y轴对应Three.js的-z轴
     const y = 0.1; // 点位高度
-    
+
     // 转换旋转角度
     const rotationY = -pose.yaw; // ROS的yaw对应Three.js的-rotationY
-    
+
     return {
         id: `waypoint_${pose.uid}`,
         type: 'waypoint',
@@ -159,7 +159,7 @@ export function poseToWaypoint(pose, mapData) {
  */
 function getPoseColor(pose) {
     const poseType = pose.options?.poseType || 'NORMAL';
-    
+
     switch (poseType) {
         case 'ELEVATOR':
             return '#ff6b6b'; // 红色 - 电梯
@@ -180,7 +180,7 @@ function getPoseColor(pose) {
 export function mapDataToBaseMap(mapData, imageData) {
     const origin = mapData.origin || { x: 0, y: 0 };
     const resolution = mapData.resolution || 0.05;
-    
+
     // 支持两种格式
     let width, height;
     if (mapData.actualSize) {
@@ -192,15 +192,15 @@ export function mapDataToBaseMap(mapData, imageData) {
         width = mapData.width || 100;
         height = mapData.height || 100;
     }
-    
+
     // 计算实际尺寸（米）
     const realWidth = width * resolution;
     const realHeight = height * resolution;
-    
+
     // 计算中心位置
     const centerX = origin.x + realWidth / 2;
     const centerZ = -(origin.y + realHeight / 2); // 注意坐标转换
-    
+
     // 处理图片数据
     let finalImageData;
     if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
@@ -213,7 +213,7 @@ export function mapDataToBaseMap(mapData, imageData) {
         // base64 编码
         finalImageData = `data:image/png;base64,${imageData}`;
     }
-    
+
     return {
         id: `basemap_${mapData.id || mapData.uid || Date.now()}`,
         type: 'map_image',
@@ -236,20 +236,20 @@ export function mapDataToBaseMap(mapData, imageData) {
  * @param {string} jsonPath - JSON 文件路径
  * @returns {Promise<Object>} 包含楼层和地图数据的对象
  */
-export async function loadFloorData(jsonPath = '/1.5_地图_1763709378606.json') {
+export async function loadFloorData(jsonPath = './1.5_地图_1763709378606.json') {
     try {
         const response = await fetch(jsonPath);
         if (!response.ok) {
             throw new Error(`Failed to load floor data: ${response.statusText}`);
         }
-        
+
         const jsonData = await response.json();
-        
+
         // 检测 JSON 格式
         if (jsonData.mapfileEntitys && jsonData.graphTopologys) {
             // 格式1: 完整的地图拓扑数据（1.5_地图_1763709378606.json）
             const floors = extractFloorsFromJSON(jsonData);
-            
+
             const mapDataMap = {};
             jsonData.mapfileEntitys?.forEach((mapEntity, index) => {
                 const record = mapEntity.record;
@@ -259,7 +259,7 @@ export async function loadFloorData(jsonPath = '/1.5_地图_1763709378606.json')
                     imageData: mapEntity.content
                 };
             });
-            
+
             return {
                 floors,
                 mapDataMap,
@@ -278,7 +278,7 @@ export async function loadFloorData(jsonPath = '/1.5_地图_1763709378606.json')
                 objects: [],
                 mapData: jsonData
             };
-            
+
             return {
                 floors: [floor],
                 mapDataMap: {
@@ -310,13 +310,13 @@ export function getAvailableMaps() {
         {
             id: 'map1',
             name: '1.5楼层地图',
-            path: '/1.5_地图_1763709378606.json',
+            path: './1.5_地图_1763709378606.json',
             description: '包含完整的点位和路径数据'
         },
         {
             id: 'map2',
             name: '新二楼地图',
-            path: '/2025年11月24日10时14分31地图文件.json',
+            path: './2025年11月24日10时14分31地图文件.json',
             description: 'xinerlou 地图'
         }
     ];

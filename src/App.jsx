@@ -1912,6 +1912,10 @@ const App = () => {
     const [pendingNewSceneData, setPendingNewSceneData] = useState(null);
     const [overwriteDefaultScene, setOverwriteDefaultScene] = useState(false);
 
+    // 保存和退出相关状态
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [showExitConfirmDialog, setShowExitConfirmDialog] = useState(false);
+    const [lastSavedState, setLastSavedState] = useState(null);
 
     const [clipboard, setClipboard] = useState([]); // 剪贴板状态
     const [showSLAMUpload, setShowSLAMUpload] = useState(false); // SLAM 上传模态框
@@ -2022,6 +2026,50 @@ const App = () => {
             return scene;
         }));
     }, [currentFloorId]);
+
+    // 保存场景函数
+    const saveCurrentScene = useCallback(() => {
+        // 更新当前场景的对象数据
+        const updatedFloors = floors.map(f => {
+            if (f.id === currentFloorId) {
+                return {
+                    ...f,
+                    objects: objects,
+                    lastSaved: new Date().toISOString()
+                };
+            }
+            return f;
+        });
+        
+        setFloors(updatedFloors);
+        setLastSavedState(JSON.stringify({ floors: updatedFloors, objects }));
+        setHasUnsavedChanges(false);
+        
+        console.log('💾 场景已保存:', currentScene?.name);
+        alert(`✅ 场景 "${currentScene?.name}" 已保存`);
+    }, [floors, currentFloorId, objects, currentScene]);
+
+    // 保存并退出
+    const saveAndExit = useCallback(() => {
+        saveCurrentScene();
+        setShowFloorManager(false);
+    }, [saveCurrentScene]);
+
+    // 退出（带未保存检测）
+    const exitWithConfirmation = useCallback(() => {
+        if (hasUnsavedChanges) {
+            setShowExitConfirmDialog(true);
+        } else {
+            setShowFloorManager(false);
+        }
+    }, [hasUnsavedChanges]);
+
+    // 强制退出（不保存）
+    const forceExit = useCallback(() => {
+        setShowExitConfirmDialog(false);
+        setShowFloorManager(false);
+        setHasUnsavedChanges(false);
+    }, []);
 
     const selectedObject = objects.find(o => o.id === selectedId);
     const filteredObjects = objects.filter(obj => (obj.name && obj.name.toLowerCase().includes(searchQuery.toLowerCase())) || (obj.type && obj.type.toLowerCase().includes(searchQuery.toLowerCase())));
@@ -2516,6 +2564,16 @@ const App = () => {
     useEffect(() => {
         setBatchSelected(batchSelectedObjects);
     }, [batchSelectedObjects, setBatchSelected]);
+
+    // 同步 selectedIds 到 batchSelected（用于显示批量操作面板）
+    useEffect(() => {
+        if (selectedIds.length > 1) {
+            const selectedObjects = objects.filter(o => selectedIds.includes(o.id));
+            setBatchSelected(selectedObjects);
+        } else {
+            setBatchSelected([]);
+        }
+    }, [selectedIds, objects, setBatchSelected]);
 
     // 复制选中对象
     const copySelected = useCallback(() => {
@@ -3357,6 +3415,16 @@ const App = () => {
         }
     };
 
+    // 监测对象变化，标记为未保存
+    useEffect(() => {
+        if (lastSavedState) {
+            const currentState = JSON.stringify({ floors, objects });
+            if (currentState !== lastSavedState) {
+                setHasUnsavedChanges(true);
+            }
+        }
+    }, [objects, floors, lastSavedState]);
+
     // Keyboard Shortcuts Effect - Moved here to ensure all functions are defined
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -3700,13 +3768,37 @@ const App = () => {
                             </div>
                         </div>
 
-                        <div className="p-4 border-t border-[#2a2a2a] flex gap-2 justify-end">
-                            <button
-                                onClick={() => setShowFloorManager(false)}
-                                className="px-4 py-2 bg-[#222] text-gray-300 rounded hover:bg-[#333] text-xs"
-                            >
-                                关闭
-                            </button>
+                        <div className="p-4 border-t border-[#2a2a2a] flex gap-2 justify-between items-center">
+                            {hasUnsavedChanges && (
+                                <div className="flex items-center gap-2 text-xs text-yellow-500">
+                                    <AlertTriangle size={14} />
+                                    <span>有未保存的更改</span>
+                                </div>
+                            )}
+                            {!hasUnsavedChanges && <div></div>}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={saveCurrentScene}
+                                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-xs flex items-center gap-2"
+                                    title="保存当前场景"
+                                >
+                                    <Save size={14} />
+                                    保存
+                                </button>
+                                <button
+                                    onClick={saveAndExit}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs flex items-center gap-2"
+                                >
+                                    <Save size={14} />
+                                    保存并退出
+                                </button>
+                                <button
+                                    onClick={exitWithConfirmation}
+                                    className="px-4 py-2 bg-[#222] text-gray-300 rounded hover:bg-[#333] text-xs"
+                                >
+                                    退出
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4371,6 +4463,64 @@ const App = () => {
                                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-bold"
                             >
                                 确定
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 退出确认对话框 */}
+            {showExitConfirmDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+                    <div className="bg-[#161616] w-[450px] rounded-xl border border-[#333] shadow-2xl flex flex-col overflow-hidden">
+                        {/* 标题栏 */}
+                        <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a] bg-[#1a1a1a]">
+                            <h3 className="text-sm font-bold text-white">退出确认</h3>
+                            <button onClick={() => setShowExitConfirmDialog(false)} className="text-gray-400 hover:text-white transition-colors">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* 内容区域 */}
+                        <div className="p-6 space-y-4">
+                            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex gap-3">
+                                <AlertTriangle className="text-yellow-500 shrink-0" size={20} />
+                                <div>
+                                    <p className="text-sm font-bold text-yellow-200 mb-1">有未保存的更改</p>
+                                    <p className="text-xs text-gray-400">当前场景有未保存的更改，退出后这些更改将会丢失。</p>
+                                </div>
+                            </div>
+
+                            <div className="text-xs text-gray-400">
+                                <p>您可以选择：</p>
+                                <ul className="list-disc list-inside mt-2 space-y-1 ml-2">
+                                    <li>点击"保存并退出"保存更改后关闭</li>
+                                    <li>点击"放弃更改"直接退出，不保存</li>
+                                    <li>点击"取消"返回继续编辑</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* 底部操作栏 */}
+                        <div className="p-4 border-t border-[#2a2a2a] flex gap-3 justify-end bg-[#1a1a1a]">
+                            <button
+                                onClick={() => setShowExitConfirmDialog(false)}
+                                className="px-4 py-2 bg-[#222] text-gray-300 rounded hover:bg-[#333] text-xs"
+                            >
+                                取消
+                            </button>
+                            <button
+                                onClick={forceExit}
+                                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-bold"
+                            >
+                                放弃更改
+                            </button>
+                            <button
+                                onClick={saveAndExit}
+                                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-bold flex items-center gap-2"
+                            >
+                                <Save size={14} />
+                                保存并退出
                             </button>
                         </div>
                     </div>
