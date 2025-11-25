@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>楼层解析测试</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .result {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            border-left-color: #f44336;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏢 楼层解析测试</h1>
+    <button onclick="testParser()">测试解析 1.5 地图</button>
+    <div id="output"></div>
+
+    <script type="module">
+        window.testParser = async function() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<div class="result">⏳ 加载中...</div>';
+            
+            try {
+                // 加载 JSON 数据
+                const response = await fetch('/1.5_地图_1763709378606.json');
+                const jsonData = await response.json();
+                
+                // 模拟解析逻辑
+                const topology = jsonData.graphTopologys?.[0];
+                const floorLevelsMap = {};
+                
+                if (topology && topology.poses) {
+                    topology.poses.forEach(pose => {
+                        const mapFileId = pose.options?.mapFileId;
+                        const poseName = pose.name || pose.alias || '';
+                        
+                        // 从点位名称推断楼层
+                        let floorLevel = '1F';
+                        let floorHeight = 0;
+                        
+                        if (poseName.includes('二楼') || poseName.includes('2楼') || poseName.includes('2F')) {
+                            floorLevel = '2F';
+                            floorHeight = 3;
+                        } else if (poseName.includes('三楼') || poseName.includes('3楼') || poseName.includes('3F')) {
+                            floorLevel = '3F';
+                            floorHeight = 6;
+                        }
+                        
+                        // 收集楼层信息
+                        if (mapFileId) {
+                            if (!floorLevelsMap[mapFileId]) {
+                                floorLevelsMap[mapFileId] = {
+                                    id: `floor-${mapFileId.substring(0, 8)}`,
+                                    mapFileId: mapFileId,
+                                    name: floorLevel,
+                                    height: floorHeight,
+                                    visible: true,
+                                    poseCount: 0,
+                                    poses: []
+                                };
+                            }
+                            floorLevelsMap[mapFileId].poseCount++;
+                            floorLevelsMap[mapFileId].poses.push(poseName);
+                            
+                            // 更新楼层名称
+                            if (floorLevel !== '1F') {
+                                floorLevelsMap[mapFileId].name = floorLevel;
+                                floorLevelsMap[mapFileId].height = floorHeight;
+                            }
+                        }
+                    });
+                }
+                
+                const floorLevels = Object.values(floorLevelsMap).sort((a, b) => {
+                    const aNum = parseInt(a.name.replace(/[^\d]/g, '')) || 0;
+                    const bNum = parseInt(b.name.replace(/[^\d]/g, '')) || 0;
+                    return aNum - bNum;
+                });
+                
+                // 显示结果
+                let html = '<div class="result">';
+                html += `<h3>✅ 解析成功</h3>`;
+                html += `<p><strong>总点位数:</strong> ${topology.poses.length}</p>`;
+                html += `<p><strong>楼层数量:</strong> ${floorLevels.length}</p>`;
+                html += '<hr>';
+                
+                floorLevels.forEach(floor => {
+                    html += `<div style="margin: 10px 0; padding: 10px; background: #333; border-radius: 3px;">`;
+                    html += `<strong>${floor.name}</strong> (高度: ${floor.height}m, 点位: ${floor.poseCount}个)<br>`;
+                    html += `<small>mapFileId: ${floor.mapFileId}</small><br>`;
+                    html += `<small>点位示例: ${floor.poses.slice(0, 3).join(', ')}...</small>`;
+                    html += `</div>`;
+                });
+                
+                html += '</div>';
+                output.innerHTML = html;
+                
+            } catch (error) {
+                output.innerHTML = `<div class="result error">❌ 错误: ${error.message}</div>`;
+                console.error(error);
+            }
+        };
+    </script>
+</body>
+</html>
