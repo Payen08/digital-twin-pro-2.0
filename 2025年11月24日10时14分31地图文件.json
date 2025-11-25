@@ -1,0 +1,30 @@
+{
+  "id": "d1dae417-e58c-4768-8006-528bf60536d3",
+  "name": "xinerlou",
+  "resolution": 0.01999999955296,
+  "actualSize": {
+    "width": 1706,
+    "height": 1235
+  },
+  "origin": {
+    "x": -40.6459999084472,
+    "y": -6.88700008392334,
+    "yaw": 0
+  },
+  "imageData": "http://10.10.63.110:9000/moying-device-data/map/d1dae417-e58c-4768-8006-528bf60536d3/image.png",
+  "md5": "47e4020ba2d32f745ea126cb06c68d57",
+  "offsetTransformer": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "roll": 0,
+    "pitch": 0,
+    "yaw": 0
+  },
+  "zoneId": "2d8b4dec-697e-4315-91c6-d79f9ac4060f",
+  "workspaceId": "af713791-d34e-4bd9-96ca-247f1d1fa514",
+  "deleted": false,
+  "disabled": false,
+  "createTime": 1760927560.736,
+  "modifyTime": 1761209260.57
+}

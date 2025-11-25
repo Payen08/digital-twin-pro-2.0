@@ -1,0 +1,130 @@
+// 对齐和分布功能 - 简化版
+// 复制这段代码替换 App.jsx 中的对齐部分
+
+{/* 对齐工具 - 简化版 */}
+<PropSection title="对齐">
+    <div className="grid grid-cols-3 gap-2 mb-3">
+        <button 
+            onClick={() => {
+                // 左对齐
+                const minX = Math.min(...selectedIds.map(id => {
+                    const obj = objects.find(o => o.id === id);
+                    return obj?.position[0] || 0;
+                }));
+                const newObjects = objects.map(obj => {
+                    if (selectedIds.includes(obj.id)) {
+                        return { ...obj, position: [minX, obj.position[1], obj.position[2]] };
+                    }
+                    return obj;
+                });
+                setObjects(newObjects);
+                commitHistory(newObjects);
+            }}
+            className="py-1.5 px-2 rounded bg-[#1a1a1a] text-gray-300 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white text-[10px] transition-all"
+        >
+            左对齐
+        </button>
+        <button 
+            onClick={() => {
+                // 居中对齐
+                const avgX = selectedIds.reduce((sum, id) => {
+                    const obj = objects.find(o => o.id === id);
+                    return sum + (obj?.position[0] || 0);
+                }, 0) / selectedIds.length;
+                const newObjects = objects.map(obj => {
+                    if (selectedIds.includes(obj.id)) {
+                        return { ...obj, position: [avgX, obj.position[1], obj.position[2]] };
+                    }
+                    return obj;
+                });
+                setObjects(newObjects);
+                commitHistory(newObjects);
+            }}
+            className="py-1.5 px-2 rounded bg-[#1a1a1a] text-gray-300 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white text-[10px] transition-all"
+        >
+            居中
+        </button>
+        <button 
+            onClick={() => {
+                // 右对齐
+                const maxX = Math.max(...selectedIds.map(id => {
+                    const obj = objects.find(o => o.id === id);
+                    return obj?.position[0] || 0;
+                }));
+                const newObjects = objects.map(obj => {
+                    if (selectedIds.includes(obj.id)) {
+                        return { ...obj, position: [maxX, obj.position[1], obj.position[2]] };
+                    }
+                    return obj;
+                });
+                setObjects(newObjects);
+                commitHistory(newObjects);
+            }}
+            className="py-1.5 px-2 rounded bg-[#1a1a1a] text-gray-300 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white text-[10px] transition-all"
+        >
+            右对齐
+        </button>
+    </div>
+    <div className="grid grid-cols-2 gap-2">
+        <button 
+            onClick={() => {
+                // 水平分布
+                if (selectedIds.length < 3) {
+                    alert('需要至少3个对象');
+                    return;
+                }
+                const sorted = [...selectedIds].sort((a, b) => {
+                    const objA = objects.find(o => o.id === a);
+                    const objB = objects.find(o => o.id === b);
+                    return (objA?.position[0] || 0) - (objB?.position[0] || 0);
+                });
+                const firstX = objects.find(o => o.id === sorted[0])?.position[0] || 0;
+                const lastX = objects.find(o => o.id === sorted[sorted.length - 1])?.position[0] || 0;
+                const gap = (lastX - firstX) / (sorted.length - 1);
+                
+                const newObjects = objects.map(obj => {
+                    const index = sorted.indexOf(obj.id);
+                    if (index !== -1) {
+                        return { ...obj, position: [firstX + gap * index, obj.position[1], obj.position[2]] };
+                    }
+                    return obj;
+                });
+                setObjects(newObjects);
+                commitHistory(newObjects);
+            }}
+            className="py-1.5 px-2 rounded bg-[#1a1a1a] text-gray-300 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white text-[10px] transition-all"
+        >
+            水平分布
+        </button>
+        <button 
+            onClick={() => {
+                // 垂直分布
+                if (selectedIds.length < 3) {
+                    alert('需要至少3个对象');
+                    return;
+                }
+                const sorted = [...selectedIds].sort((a, b) => {
+                    const objA = objects.find(o => o.id === a);
+                    const objB = objects.find(o => o.id === b);
+                    return (objA?.position[2] || 0) - (objB?.position[2] || 0);
+                });
+                const firstZ = objects.find(o => o.id === sorted[0])?.position[2] || 0;
+                const lastZ = objects.find(o => o.id === sorted[sorted.length - 1])?.position[2] || 0;
+                const gap = (lastZ - firstZ) / (sorted.length - 1);
+                
+                const newObjects = objects.map(obj => {
+                    const index = sorted.indexOf(obj.id);
+                    if (index !== -1) {
+                        return { ...obj, position: [obj.position[0], obj.position[1], firstZ + gap * index] };
+                    }
+                    return obj;
+                });
+                setObjects(newObjects);
+                commitHistory(newObjects);
+            }}
+            className="py-1.5 px-2 rounded bg-[#1a1a1a] text-gray-300 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white text-[10px] transition-all"
+        >
+            垂直分布
+        </button>
+    </div>
+</PropSection>

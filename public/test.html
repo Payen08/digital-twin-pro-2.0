@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Figma 跳转测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #0a0a0a;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .container {
+            text-align: center;
+        }
+        h1 {
+            color: #fff;
+            margin-bottom: 30px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #2563eb;
+            transform: scale(1.05);
+        }
+        .info {
+            color: #888;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Figma 原型跳转测试</h1>
+        <button onclick="openFigma()">打开 Figma 原型</button>
+        <div class="info">点击按钮将在新标签页打开 Figma</div>
+    </div>
+
+    <script>
+        function openFigma() {
+            const url = 'https://embed.figma.com/proto/evYdd25AKezIYSp8T5A1x8/Untitled?page-id=0%3A1&node-id=1-996&viewport=317%2C241%2C0.24&scaling=scale-down-width&content-scaling=fixed&embed-host=share';
+            console.log('🚀 打开 Figma:', url);
+            const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+            if (!newWindow) {
+                alert('浏览器阻止了弹出窗口，请允许弹出窗口后重试');
+            } else {
+                console.log('✅ Figma 已在新标签页打开');
+            }
+        }
+    </script>
+</body>
+</html>
