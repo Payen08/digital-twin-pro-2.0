@@ -1903,7 +1903,21 @@ const App = () => {
 
     const fileInputRef = useRef(null);
     const assetUploadRef = useRef(null);
-    const [customAssets, setCustomAssets] = useState([]);
+    const [customAssets, setCustomAssets] = useState(() => {
+        // 从localStorage加载自定义资产，但过滤掉包含blob URL的旧资产
+        const saved = loadFromLocalStorage();
+        if (saved?.customAssets) {
+            return saved.customAssets.filter(asset => {
+                // 只保留Base64格式的资产（以data:开头）
+                if (asset.modelUrl && asset.modelUrl.startsWith('blob:')) {
+                    console.warn('⚠️ 跳过失效的blob URL资产:', asset.label);
+                    return false;
+                }
+                return true;
+            });
+        }
+        return [];
+    });
     const [editingAsset, setEditingAsset] = useState(null);
 
     // 默认资产配置（可修改）
@@ -2612,14 +2626,32 @@ const App = () => {
                 currentFloorId,
                 currentFloorLevelId,
                 objects,
+                customAssets, // 保存自定义资产
                 timestamp: new Date().toISOString()
             };
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
             console.log('💾 自动保存到本地存储');
         } catch (error) {
             console.error('❌ 保存到本地存储失败:', error);
+            // 如果保存失败（可能是因为数据太大），尝试不保存自定义资产
+            if (error.name === 'QuotaExceededError') {
+                console.warn('⚠️ 存储空间不足，尝试不保存自定义资产...');
+                try {
+                    const dataToSave = {
+                        floors,
+                        currentFloorId,
+                        currentFloorLevelId,
+                        objects,
+                        timestamp: new Date().toISOString()
+                    };
+                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+                    console.log('💾 已保存（不包含自定义资产）');
+                } catch (e) {
+                    console.error('❌ 保存失败:', e);
+                }
+            }
         }
-    }, [floors, currentFloorId, currentFloorLevelId, objects]);
+    }, [floors, currentFloorId, currentFloorLevelId, objects, customAssets]);
 
     // 同步批量选择状态
     useEffect(() => {
@@ -2774,22 +2806,38 @@ const App = () => {
         });
     };
 
-    const handleAddAsset = (e) => {
+    const handleAddAsset = async (e) => {
         const file = e.target.files[0];
         if (file) {
-            const url = URL.createObjectURL(file);
-            const newAsset = {
-                id: uuidv4(),
-                type: 'custom_model',
-                label: file.name.replace(/\.[^/.]+$/, ""),
-                icon: Box,
-                category: '自定义',
-                modelUrl: url,
-                modelScale: 1,
-                rotationY: 0,
-                jsonData: '{\n  "description": "New Asset"\n}'
+            // 检查文件大小（限制为10MB）
+            if (file.size > 10 * 1024 * 1024) {
+                alert('⚠️ 文件太大！请选择小于10MB的模型文件。');
+                e.target.value = '';
+                return;
+            }
+
+            // 将文件转换为Base64（用于持久化存储）
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const base64Data = event.target.result;
+                const newAsset = {
+                    id: uuidv4(),
+                    type: 'custom_model',
+                    label: file.name.replace(/\.[^/.]+$/, ""),
+                    icon: Box,
+                    category: '自定义',
+                    modelUrl: base64Data, // 使用Base64而不是blob URL
+                    modelScale: 1,
+                    rotationY: 0,
+                    jsonData: '{\n  "description": "New Asset"\n}'
+                };
+                setCustomAssets([...customAssets, newAsset]);
+                console.log('✅ 资产已添加:', newAsset.label);
             };
-            setCustomAssets([...customAssets, newAsset]);
+            reader.onerror = () => {
+                alert('❌ 文件读取失败，请重试。');
+            };
+            reader.readAsDataURL(file);
             e.target.value = '';
         }
     };
