@@ -2079,7 +2079,7 @@ const App = () => {
         { type: 'column', label: '标准柱子', icon: Columns, category: '建筑' },
         { type: 'floor', label: '标准地面', icon: LandPlot, category: '建筑' },
         { type: 'cube', label: '正方体', icon: Box, category: '建筑' },
-        { type: 'cnc', label: 'CNC', icon: Server, category: '设备', modelUrl: '/cnc.glb', modelScale: 1 },
+        { type: 'cnc', label: 'CNC', icon: Server, category: '设备', modelUrl: `${import.meta.env.BASE_URL}cnc.glb`, modelScale: 1 },
     ];
     const allAssets = [...defaultAssets, ...customAssets];
     const filteredAssets = allAssets.filter(asset => asset.label.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -3241,7 +3241,7 @@ const App = () => {
                     name = 'CNC加工中心';
                     color = '#3b82f6';
                     yOffset = 0;
-                    modelUrl = '/cnc.glb';  // 预置CNC模型
+                    modelUrl = `${import.meta.env.BASE_URL}cnc.glb`;  // 预置CNC模型
                     modelScale = defaultAssetConfigs.cnc?.modelScale || 1;
                     console.log('📦 使用CNC配置:', defaultAssetConfigs.cnc);
                     break;
@@ -3415,15 +3415,45 @@ const App = () => {
         }
     };
 
+    // 初始化 lastSavedState
+    useEffect(() => {
+        if (lastSavedState === null && objects.length > 0) {
+            setLastSavedState(JSON.stringify({ floors, objects }));
+        }
+    }, [lastSavedState, floors, objects]);
+
     // 监测对象变化，标记为未保存
     useEffect(() => {
         if (lastSavedState) {
             const currentState = JSON.stringify({ floors, objects });
             if (currentState !== lastSavedState) {
+                console.log('🔄 检测到未保存的更改');
                 setHasUnsavedChanges(true);
             }
         }
     }, [objects, floors, lastSavedState]);
+
+    // 关闭网页时提醒未保存
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            console.log('🚪 beforeunload 触发, hasUnsavedChanges:', hasUnsavedChanges);
+            if (hasUnsavedChanges) {
+                // 标准做法：设置 returnValue
+                const message = '您有未保存的更改，确定要离开吗？';
+                e.preventDefault();
+                e.returnValue = message;
+                console.log('⚠️ 阻止关闭，显示确认对话框');
+                return message;
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        console.log('✅ beforeunload 监听器已添加, hasUnsavedChanges:', hasUnsavedChanges);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            console.log('🗑️ beforeunload 监听器已移除');
+        };
+    }, [hasUnsavedChanges]);
 
     // Keyboard Shortcuts Effect - Moved here to ensure all functions are defined
     useEffect(() => {
@@ -3446,6 +3476,12 @@ const App = () => {
                 pasteClipboard();
             }
 
+            // 保存 Ctrl+S
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveCurrentScene();
+            }
+
             if (e.key === 'Escape') {
                 setIsPreviewMode(false);
                 setSelectedId(null);
@@ -3459,7 +3495,7 @@ const App = () => {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo, deleteSelected, copySelected, pasteClipboard]);
+    }, [undo, redo, deleteSelected, copySelected, pasteClipboard, saveCurrentScene]);
 
     const handleMultiTransformEnd = (updatedObjects) => {
         // 批量更新所有对象并提交到历史记录
@@ -3768,37 +3804,13 @@ const App = () => {
                             </div>
                         </div>
 
-                        <div className="p-4 border-t border-[#2a2a2a] flex gap-2 justify-between items-center">
-                            {hasUnsavedChanges && (
-                                <div className="flex items-center gap-2 text-xs text-yellow-500">
-                                    <AlertTriangle size={14} />
-                                    <span>有未保存的更改</span>
-                                </div>
-                            )}
-                            {!hasUnsavedChanges && <div></div>}
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={saveCurrentScene}
-                                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-xs flex items-center gap-2"
-                                    title="保存当前场景"
-                                >
-                                    <Save size={14} />
-                                    保存
-                                </button>
-                                <button
-                                    onClick={saveAndExit}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs flex items-center gap-2"
-                                >
-                                    <Save size={14} />
-                                    保存并退出
-                                </button>
-                                <button
-                                    onClick={exitWithConfirmation}
-                                    className="px-4 py-2 bg-[#222] text-gray-300 rounded hover:bg-[#333] text-xs"
-                                >
-                                    退出
-                                </button>
-                            </div>
+                        <div className="p-4 border-t border-[#2a2a2a] flex gap-2 justify-end">
+                            <button
+                                onClick={() => setShowFloorManager(false)}
+                                className="px-4 py-2 bg-[#222] text-gray-300 rounded hover:bg-[#333] text-xs"
+                            >
+                                关闭
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -4175,10 +4187,9 @@ const App = () => {
                                             } else {
                                                 // 不是默认场景，正常添加
                                                 // 但如果存在空的默认场景，先删除它
-                                                const hasEmptyDefaultScene = floors.some(f =>
-                                                    f.isDefault &&
-                                                    (!f.objects || f.objects.length === 0)
-                                                );
+                                                const defaultScene = floors.find(f => f.isDefault);
+                                                const hasEmptyDefaultScene = defaultScene && 
+                                                    isSceneClean(defaultScene.objects || []);
 
                                                 if (hasEmptyDefaultScene) {
                                                     console.log('🗑️ 删除空的默认场景');
@@ -4398,6 +4409,7 @@ const App = () => {
 
                                     if (overwriteDefaultScene) {
                                         // 替换逻辑：直接用新场景替换默认场景
+                                        console.log('🔄 替换模式：用新场景替换默认场景');
                                         setFloors([newFloor]);
 
                                         // 切换到新场景
@@ -4406,24 +4418,10 @@ const App = () => {
                                         setHistory([finalObjects]);
                                         setHistoryIndex(0);
                                     } else {
-                                        // 合并逻辑：保留默认场景，新场景继承默认场景的装饰物
+                                        // 合并逻辑：新场景继承默认场景的装饰物，然后删除默认场景
                                         console.log('📝 合并模式：新场景将继承默认场景的装饰物');
 
-                                        // 1. 保存当前默认场景的对象
-                                        const updatedFloors = floors.map(f => {
-                                            if (f.id === currentFloorId) {
-                                                const waypointCount = objects.filter(o => o.type === 'waypoint').length;
-                                                const hasSceneModel = objects.some(o => o.type === 'custom_model' && o.name === '3D场景模型');
-                                                return {
-                                                    ...f,
-                                                    objects: objects,
-                                                    description: `包含 ${waypointCount} 个点位${hasSceneModel ? ' + 3D模型' : ''}`
-                                                };
-                                            }
-                                            return f;
-                                        });
-
-                                        // 2. 从当前对象中提取装饰物（非路网、非底图的元素）
+                                        // 1. 从当前对象中提取装饰物（非路网、非底图的元素）
                                         const decorativeObjects = objects.filter(obj =>
                                             !obj.isBaseMap && // 不是底图
                                             obj.type !== 'waypoint' && // 不是路网点位
@@ -4434,19 +4432,21 @@ const App = () => {
                                         console.log('🎨 提取的装饰物:', decorativeObjects.length, '个');
                                         console.log('📋 装饰物列表:', decorativeObjects.map(o => ({ type: o.type, name: o.name })));
 
-                                        // 3. 合并：新场景的对象 + 继承的装饰物
+                                        // 2. 合并：新场景的对象 + 继承的装饰物
                                         const mergedObjects = [...finalObjects, ...decorativeObjects];
 
-                                        // 4. 更新新场景的对象列表
+                                        // 3. 更新新场景的对象列表
                                         const newFloorWithDecorations = {
                                             ...newFloor,
                                             objects: mergedObjects
                                         };
 
-                                        // 5. 添加新场景到列表
-                                        setFloors([...updatedFloors, newFloorWithDecorations]);
+                                        // 4. 删除默认场景，只保留新场景
+                                        console.log('🗑️ 删除默认场景，只保留新场景');
+                                        const nonDefaultFloors = floors.filter(f => !f.isDefault);
+                                        setFloors([...nonDefaultFloors, newFloorWithDecorations]);
 
-                                        // 6. 切换到新场景
+                                        // 5. 切换到新场景
                                         setCurrentFloorId(newFloorWithDecorations.id);
                                         setObjects(mergedObjects);
                                         setHistory([mergedObjects]);
@@ -4916,8 +4916,9 @@ const App = () => {
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 glass-panel rounded-xl p-1 flex gap-1 shadow-2xl bg-[#09090b]">
                         <ToolBtn icon={MousePointer2} active={toolMode === 'select' && !transformMode && !isEditingPoints} onClick={() => { setToolMode('select'); setTransformMode(null); }} title="选择 (Shift+拖动框选)" />
                         <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
-                        <ToolBtn icon={Spline} active={toolMode === 'draw_path'} onClick={() => { setToolMode('draw_path'); setTransformMode(null); }} title="绘制路径 (点击创建点/连接点)" />
-                        <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
+                        {/* 绘制路径按钮 - 暂时隐藏 */}
+                        {false && <ToolBtn icon={Spline} active={toolMode === 'draw_path'} onClick={() => { setToolMode('draw_path'); setTransformMode(null); }} title="绘制路径 (点击创建点/连接点)" />}
+                        {false && <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>}
                         <ToolBtn icon={Move} active={toolMode === 'select' && transformMode === 'translate'} onClick={() => { setToolMode('select'); setTransformMode('translate'); setIsBoxSelecting(false); }} title="移动" />
                         <ToolBtn icon={RotateCw} active={toolMode === 'select' && transformMode === 'rotate'} onClick={() => { setToolMode('select'); setTransformMode('rotate'); }} title="旋转" />
                         <ToolBtn icon={Maximize} active={toolMode === 'select' && transformMode === 'scale'} onClick={() => { setToolMode('select'); setTransformMode('scale'); }} title="缩放" />
@@ -4936,6 +4937,7 @@ const App = () => {
                         </button>
                     </div>
                 )}
+
                 {!isPreviewMode && toolMode !== 'select' && (<div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-blue-600/90 text-white px-4 py-2 rounded-full text-xs shadow-lg backdrop-blur z-20 animate-bounce pointer-events-none">{toolMode === 'draw_wall' && "点击绘制直墙 (右键/Enter 结束)"}{toolMode === 'draw_curve' && "点击添加曲线点 (右键/Enter 结束)"}{toolMode === 'draw_floor' && "点击绘制地面顶点 (右键/Enter 结束)"}</div>)}
 
                 {/* 楼层切换器 - 左下角浮动 */}
@@ -4967,8 +4969,9 @@ const App = () => {
                     </div>
                 )}
 
-                {/* Top Right Controls: Preview Button */}
-                <div className="absolute top-4 right-6 z-20 flex gap-3">
+                {/* Top Right Controls: Preview and Save Button */}
+                <div className="absolute top-4 right-6 z-20 flex gap-2">
+                    {/* 预览按钮 */}
                     <a
                         href="https://www.figma.com/proto/evYdd25AKezIYSp8T5A1x8/Untitled?page-id=0%3A1&node-id=1-996&viewport=317%2C241%2C0.24&scaling=contain&content-scaling=fixed"
                         target="_blank"
@@ -4978,6 +4981,17 @@ const App = () => {
                     >
                         <Play size={18} />
                     </a>
+                    {/* 保存按钮 */}
+                    {!isPreviewMode && (
+                        <button
+                            onClick={saveCurrentScene}
+                            className="glass-panel px-3 py-1.5 bg-[#080808] rounded-lg transition-colors text-gray-400 hover:text-white hover:bg-[#333] flex items-center justify-center gap-2"
+                            title="保存当前场景 (Ctrl+S)"
+                        >
+                            <Save size={18} />
+                            <span className="text-sm">保存</span>
+                        </button>
+                    )}
                 </div>
 
                 {/* Bottom Right Controls: Zoom Controls (Vertical) */}
@@ -6347,10 +6361,6 @@ const App = () => {
                                             <span className="text-xs text-white">{floors.find(f => f.id === currentFloorId)?.name || '默认场景'}</span>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-xs text-gray-400">对象数量</span>
-                                            <span className="text-xs text-white">{objects.length} 个</span>
-                                        </div>
-                                        <div className="flex items-center justify-between">
                                             <span className="text-xs text-gray-400">点位数量</span>
                                             <span className="text-xs text-white">{objects.filter(o => o.type === 'waypoint').length} 个</span>
                                         </div>
@@ -6383,7 +6393,7 @@ const App = () => {
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs text-gray-400">场景楼层</span>
-                                            <span className="text-xs text-white">{currentScene?.floorLevels?.length || 0} 层</span>
+                                            <span className="text-xs text-white">共 {currentScene?.floorLevels?.length || 0} 层</span>
                                         </div>
                                     </div>
 
