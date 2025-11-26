@@ -4848,7 +4848,19 @@ const App = () => {
                     {/* Left Panel */}
                     <div className="w-64 flex flex-col border-r border-[#1a1a1a] bg-[#0f0f0f]">
                         <div className="h-14 flex items-center px-4 gap-3 border-b border-[#1a1a1a]">
-                            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+                            <img 
+                                src={import.meta.env.BASE_URL + 'logo.png'}
+                                alt="Logo" 
+                                className="w-8 h-8 object-contain rounded p-1"
+                                onError={(e) => {
+                                    // 如果图片加载失败，显示文字Logo
+                                    e.target.style.display = 'none';
+                                    e.target.nextElementSibling.style.display = 'flex';
+                                }}
+                            />
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg items-center justify-center text-white font-bold text-sm shadow-lg hidden">
+                                DT
+                            </div>
                             <span className="text-xs font-bold tracking-wide text-white">Digital Twin Pro 2.0</span>
                         </div>
                         {/* ... Search & Tabs ... */}
