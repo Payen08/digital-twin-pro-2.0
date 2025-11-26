@@ -1484,11 +1484,19 @@ const AssetEditModal = ({ asset, onClose, onSave }) => {
     );
 };
 
-const PropSection = ({ title, children, defaultOpen = true }) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
-    return (<div className="border-b border-[#1a1a1a]"><button onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between px-4 py-3 text-[10px] font-bold text-gray-500 hover:text-gray-300 uppercase tracking-wider transition-colors bg-[#111]">{title}{isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</button>{isOpen && <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">{children}</div>}</div>);
+const PropSection = ({ title, children }) => {
+    return (
+        <div className="border-b border-[#1a1a1a]">
+            <div className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-[#111]">
+                {title}
+            </div>
+            <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
+                {children}
+            </div>
+        </div>
+    );
 };
-const PropRow = ({ label, children, vertical = false }) => (<div className={`flex ${vertical ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}><label className={`text-[11px] text-gray-500 shrink-0 text-right ${vertical ? 'w-full text-left pl-1' : 'w-16'}`}>{label}</label><div className="flex-1 flex gap-2 w-full">{children}</div></div>);
+const PropRow = ({ label, children, vertical = false }) => (<div className={`flex ${vertical ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}><label className={`text-[11px] text-gray-500 shrink-0 ${vertical ? 'w-full text-left pl-1' : 'w-16'}`}>{label}</label><div className="flex-1 flex gap-2 w-full">{children}</div></div>);
 const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, className }) => {
     const [localStr, setLocalStr] = useState(value?.toString() || '0');
     const [isEditing, setIsEditing] = useState(false);
@@ -1519,9 +1527,10 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
         let num = parseFloat(localStr);
         if (isNaN(num)) {
             num = 0;
+            setLocalStr('0');
         }
         onChange(num);
-        setLocalStr(num.toString());
+        // 不强制更新 localStr，让外部 value 自然同步
     };
 
     const handleBlur = () => {
@@ -1832,8 +1841,29 @@ function BoxSelectionIntegration({ onSelectionChange, enabled }) {
 }
 
 const App = () => {
+    // 本地存储键名
+    const LOCAL_STORAGE_KEY = 'digital-twin-pro-data';
+    
+    // 从本地存储加载数据
+    const loadFromLocalStorage = () => {
+        try {
+            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (saved) {
+                const data = JSON.parse(saved);
+                console.log('📦 从本地存储加载数据:', data);
+                return data;
+            }
+        } catch (error) {
+            console.error('❌ 加载本地数据失败:', error);
+        }
+        return null;
+    };
+    
     const initialObjects = [];
-    const [objects, setObjects] = useState(initialObjects);
+    const [objects, setObjects] = useState(() => {
+        const saved = loadFromLocalStorage();
+        return saved?.objects || initialObjects;
+    });
 
     // 暴露 objects 到全局，供吸附逻辑使用
     useEffect(() => {
@@ -1882,22 +1912,31 @@ const App = () => {
     });
 
     // 场景管理状态
-    const [floors, setFloors] = useState([
-        {
-            id: 'default',
-            name: '默认场景',
-            description: '默认场景',
-            baseMapId: null,
-            objects: [],
-            isDefault: true,
-            // 楼层列表
-            floorLevels: [
-                { id: 'floor-1', name: '1F', height: 0, visible: true, objects: [] }
-            ]
-        }
-    ]);
-    const [currentFloorId, setCurrentFloorId] = useState('default');
-    const [currentFloorLevelId, setCurrentFloorLevelId] = useState('floor-1'); // 当前楼层ID
+    const [floors, setFloors] = useState(() => {
+        const saved = loadFromLocalStorage();
+        return saved?.floors || [
+            {
+                id: 'default',
+                name: '默认场景',
+                description: '默认场景',
+                baseMapId: null,
+                objects: [],
+                isDefault: true,
+                // 楼层列表
+                floorLevels: [
+                    { id: 'floor-1', name: '1F', height: 0, visible: true, objects: [] }
+                ]
+            }
+        ];
+    });
+    const [currentFloorId, setCurrentFloorId] = useState(() => {
+        const saved = loadFromLocalStorage();
+        return saved?.currentFloorId || 'default';
+    });
+    const [currentFloorLevelId, setCurrentFloorLevelId] = useState(() => {
+        const saved = loadFromLocalStorage();
+        return saved?.currentFloorLevelId || 'floor-1';
+    }); // 当前楼层ID
     const [showFloorManager, setShowFloorManager] = useState(false);
     const [editingFloor, setEditingFloor] = useState(null);
     const [currentMapPath, setCurrentMapPath] = useState(null);
@@ -2472,6 +2511,11 @@ const App = () => {
         if (!floor) return;
 
         console.log('🔄 切换到场景:', floor.name);
+        
+        // 自动设置当前楼层为该场景的第一个楼层
+        if (floor.floorLevels && floor.floorLevels.length > 0) {
+            setCurrentFloorLevelId(floor.floorLevels[0].id);
+        }
 
         // 如果场景有保存的对象数据，直接恢复（包括默认场景）
         if (floor.objects && floor.objects.length > 0) {
@@ -2560,6 +2604,23 @@ const App = () => {
         }
     }, [handleBatchUngroup]);
 
+    // 自动保存到本地存储
+    useEffect(() => {
+        try {
+            const dataToSave = {
+                floors,
+                currentFloorId,
+                currentFloorLevelId,
+                objects,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+            console.log('💾 自动保存到本地存储');
+        } catch (error) {
+            console.error('❌ 保存到本地存储失败:', error);
+        }
+    }, [floors, currentFloorId, currentFloorLevelId, objects]);
+
     // 同步批量选择状态
     useEffect(() => {
         setBatchSelected(batchSelectedObjects);
@@ -2614,6 +2675,13 @@ const App = () => {
     const handleSelect = useCallback((id, multiSelect = false) => {
         if (toolMode !== 'select') return;
 
+        // 检查对象是否属于其他楼层，如果是则不允许选择
+        const obj = objects.find(o => o.id === id);
+        if (obj && obj.floorLevel && currentFloorLevel && obj.floorLevel !== currentFloorLevel.name) {
+            console.log('⚠️ 无法选择其他楼层的对象');
+            return;
+        }
+
         if (multiSelect) {
             const newIds = selectedIds.includes(id)
                 ? selectedIds.filter(i => i !== id)
@@ -2624,7 +2692,7 @@ const App = () => {
             setSelectedId(id);
             setSelectedIds([id]);
         }
-    }, [toolMode, selectedIds]);
+    }, [toolMode, selectedIds, objects, currentFloorLevel]);
 
     useEffect(() => { setIsEditingPoints(false); if (!selectedId) setTransformMode('translate'); }, [selectedId]);
 
@@ -3331,20 +3399,49 @@ const App = () => {
     };
 
     const snapObjectToGround = () => {
-        if (!selectedId) return;
+        // 支持单选和多选
+        const targetIds = selectedIds.length > 0 ? selectedIds : (selectedId ? [selectedId] : []);
+        if (targetIds.length === 0) return;
+        
         const newObjects = objects.map(obj => {
-            if (obj.id !== selectedId) return obj;
+            if (!targetIds.includes(obj.id)) return obj;
+            
+            // 路径类型：将所有点的Y坐标设置为0.1（稍微高于地面）
+            if (obj.type === 'path') {
+                return {
+                    ...obj,
+                    points: obj.points.map(point => [point[0], 0.1, point[2]])
+                };
+            }
+            
             let newY = 0;
-            if (['wall', 'column', 'door', 'cnc', 'custom_model'].includes(obj.type)) newY = obj.scale[1] / 2;
-            else if (obj.type === 'floor') newY = -0.11;
-            else if (obj.type === 'polygon_floor') newY = 0.01;
-            else newY = 0;
-            if (obj.type === 'custom_model' && obj.modelUrl) newY = 0;
+            
+            // 根据物体类型计算底部应该在地面的Y坐标
+            if (obj.type === 'floor') {
+                newY = -0.11;  // 地面稍微低一点
+            } else if (obj.type === 'polygon_floor') {
+                newY = 0.01;
+            } else if (['wall', 'column', 'door', 'cube'].includes(obj.type)) {
+                // 这些物体的原点在中心，需要抬高半个高度
+                newY = obj.scale[1] / 2;
+            } else if (obj.type === 'cnc' || (obj.type === 'custom_model' && obj.modelUrl)) {
+                // CNC和自定义模型的原点通常在底部
+                newY = 0;
+            } else if (obj.type === 'waypoint' || obj.type === 'point') {
+                // 点位放在地面上，稍微高一点以便可见
+                newY = 0.1;
+            } else {
+                // 其他物体放在地面上
+                newY = 0;
+            }
+            
             const newPos = [...obj.position];
             newPos[1] = newY;
             return { ...obj, position: newPos };
         });
         commitHistory(newObjects);
+        
+        console.log(`✅ 已将 ${targetIds.length} 个对象置于地面`);
     };
 
     const updateObject = (id, key, value) => {
@@ -3559,14 +3656,20 @@ const App = () => {
 
     // 计算用于显示的临时对象列表（包含拖动偏移和楼层过滤）
     const displayObjects = useMemo(() => {
-        // 1. 楼层过滤
-        const filteredObjects = objects.filter(obj => {
+        // 1. 楼层过滤和高亮
+        const filteredObjects = objects.map(obj => {
             // 如果对象有 floorLevel 属性，检查是否匹配当前楼层
             if (obj.floorLevel && currentFloorLevel) {
-                return obj.floorLevel === currentFloorLevel.name;
+                const isCurrentFloor = obj.floorLevel === currentFloorLevel.name;
+                // 为非当前楼层的对象添加半透明标记
+                return {
+                    ...obj,
+                    opacity: isCurrentFloor ? (obj.opacity || 1) : 0.2,
+                    isOtherFloor: !isCurrentFloor
+                };
             }
-            // 如果对象没有楼层信息，默认显示（如基础地面、底图等）
-            return true;
+            // 如果对象没有楼层信息，默认正常显示（如基础地面、底图等）
+            return obj;
         });
 
         // 2. 处理组合对象的相对位置
@@ -3871,16 +3974,6 @@ const App = () => {
                                             {map.name}
                                         </option>
                                     ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs text-gray-400 mb-2">* 是否初始化地图关联设备</label>
-                                <select
-                                    className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-sm text-gray-400 outline-none"
-                                >
-                                    <option>是</option>
-                                    <option>否</option>
                                 </select>
                             </div>
 
@@ -4754,7 +4847,10 @@ const App = () => {
                 <>
                     {/* Left Panel */}
                     <div className="w-64 flex flex-col border-r border-[#1a1a1a] bg-[#0f0f0f]">
-                        <div className="h-14 flex items-center px-4 gap-3 border-b border-[#1a1a1a]"><div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-[10px] font-bold text-white">DT</div><span className="text-xs font-bold tracking-wide text-white">Digital Twin Pro</span></div>
+                        <div className="h-14 flex items-center px-4 gap-3 border-b border-[#1a1a1a]">
+                            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+                            <span className="text-xs font-bold tracking-wide text-white">Digital Twin Pro 2.0</span>
+                        </div>
                         {/* ... Search & Tabs ... */}
                         <div className="px-3 pt-3 pb-2">
                             <div className="flex bg-[#1a1a1a] p-1 rounded-md mb-2">
@@ -4990,6 +5086,21 @@ const App = () => {
                         >
                             <Save size={18} />
                             <span className="text-sm">保存</span>
+                        </button>
+                    )}
+                    {/* 清除本地数据按钮 */}
+                    {!isPreviewMode && (
+                        <button
+                            onClick={() => {
+                                if (window.confirm('确定要清除所有本地保存的数据吗？\n\n此操作将删除所有场景和对象，无法恢复！')) {
+                                    localStorage.removeItem(LOCAL_STORAGE_KEY);
+                                    window.location.reload();
+                                }
+                            }}
+                            className="glass-panel p-1.5 bg-[#080808] rounded-lg transition-colors text-gray-400 hover:text-red-400 hover:bg-red-900/20 flex items-center justify-center"
+                            title="清除本地数据"
+                        >
+                            <Trash2 size={18} />
                         </button>
                     )}
                 </div>
@@ -5355,8 +5466,8 @@ const App = () => {
                     <div className="w-72 bg-[#0f0f0f] border-l border-[#1a1a1a] flex flex-col overflow-y-auto">
                         {batchSelected.length > 0 && selectedIds.length > 1 ? (
                             <div className="pb-10">
-                                {/* 批量操作面板 */}
-                                <div className="p-4 border-b border-[#1a1a1a]">
+                                {/* 批量操作面板 - 固定标题 */}
+                                <div className="sticky top-0 z-10 p-4 border-b border-[#1a1a1a] bg-[#0f0f0f]">
                                     <div className="flex items-center gap-2 mb-4">
                                         <div className="w-8 h-8 bg-blue-600/20 border border-blue-500/30 rounded flex items-center justify-center text-blue-400">
                                             <CopyCheck size={16} />
@@ -5368,10 +5479,10 @@ const App = () => {
                                     </div>
                                 </div>
 
-                                {/* 对齐工具 - 图标样式 */}
+                                {/* 对齐工具 - 优化UI */}
                                 <div className="p-4 border-b border-[#1a1a1a] bg-[#0a0a0a]">
                                     <div className="text-[10px] font-bold text-gray-600 uppercase mb-3 px-1">对齐工具</div>
-                                    <div className="flex items-center justify-center gap-1">
+                                    <div className="grid grid-cols-7 gap-2 mb-2">
                                         {/* 左对齐 */}
                                         <button
                                             onClick={() => {
@@ -5388,17 +5499,14 @@ const App = () => {
                                                 setObjects(newObjects);
                                                 commitHistory(newObjects);
                                             }}
-                                            className="p-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all"
+                                            className="col-span-2 px-3 py-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all text-xs flex items-center justify-center gap-1"
                                             title="左对齐"
                                         >
-                                            <img src="/icons/align/align-left.png" alt="左对齐" className="w-5 h-5" onError={(e) => {
-                                                e.target.style.display = 'none';
-                                                e.target.nextSibling.style.display = 'block';
-                                            }} />
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'none' }}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                 <line x1="3" y1="6" x2="3" y2="18" />
                                                 <rect x="7" y="8" width="6" height="8" />
                                             </svg>
+                                            <span>左</span>
                                         </button>
 
                                         {/* 居中对齐 */}
@@ -5417,17 +5525,14 @@ const App = () => {
                                                 setObjects(newObjects);
                                                 commitHistory(newObjects);
                                             }}
-                                            className="p-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all"
-                                            title="居中对齐"
+                                            className="col-span-3 px-3 py-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all text-xs flex items-center justify-center gap-1"
+                                            title="水平居中对齐"
                                         >
-                                            <img src="/icons/align/align-center.png" alt="居中" className="w-5 h-5" onError={(e) => {
-                                                e.target.style.display = 'none';
-                                                e.target.nextSibling.style.display = 'block';
-                                            }} />
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'none' }}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                 <line x1="12" y1="6" x2="12" y2="18" />
                                                 <rect x="8" y="8" width="8" height="8" />
                                             </svg>
+                                            <span>水平居中</span>
                                         </button>
 
                                         {/* 右对齐 */}
@@ -5446,26 +5551,169 @@ const App = () => {
                                                 setObjects(newObjects);
                                                 commitHistory(newObjects);
                                             }}
-                                            className="p-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all"
+                                            className="col-span-2 px-3 py-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all text-xs flex items-center justify-center gap-1"
                                             title="右对齐"
                                         >
-                                            <img src="/icons/align/align-right.png" alt="右对齐" className="w-5 h-5" onError={(e) => {
-                                                e.target.style.display = 'none';
-                                                e.target.nextSibling.style.display = 'block';
-                                            }} />
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'none' }}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                 <line x1="21" y1="6" x2="21" y2="18" />
                                                 <rect x="11" y="8" width="6" height="8" />
                                             </svg>
+                                            <span>右</span>
                                         </button>
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-2">
 
-                                        <div className="w-px h-6 bg-[#2a2a2a] mx-1"></div>
-
-                                        {/* 水平分布 */}
+                                        {/* 上对齐 - 根据相机视角自动选择轴向 */}
                                         <button
                                             onClick={() => {
+                                                // 俯视图: Z轴最小值（屏幕上方）, 透视图/前视图: Y轴最大值（垂直向上）
+                                                const axisIndex = cameraView === 'top' ? 2 : 1;
+                                                
+                                                // 计算每个物体的实际顶部/底部位置
+                                                const getEdgePosition = (obj, isTop) => {
+                                                    const centerPos = obj.position[axisIndex] || 0;
+                                                    // 对于原点在中心的物体，需要加上/减去半个尺寸
+                                                    if (['wall', 'column', 'door', 'cube'].includes(obj.type)) {
+                                                        const halfSize = (obj.scale[axisIndex] || 1) / 2;
+                                                        return isTop ? centerPos + halfSize : centerPos - halfSize;
+                                                    }
+                                                    // 其他物体原点在底部
+                                                    return centerPos;
+                                                };
+                                                
+                                                const targetValue = cameraView === 'top' 
+                                                    ? Math.min(...selectedIds.map(id => {
+                                                        const obj = objects.find(o => o.id === id);
+                                                        return getEdgePosition(obj, false); // 俯视图：最小值是上方
+                                                    }))
+                                                    : Math.max(...selectedIds.map(id => {
+                                                        const obj = objects.find(o => o.id === id);
+                                                        return getEdgePosition(obj, true); // 透视图：最大值是上方
+                                                    }));
+                                                
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        // 计算新的中心位置
+                                                        if (['wall', 'column', 'door', 'cube'].includes(obj.type)) {
+                                                            const halfSize = (obj.scale[axisIndex] || 1) / 2;
+                                                            newPos[axisIndex] = cameraView === 'top' 
+                                                                ? targetValue + halfSize 
+                                                                : targetValue - halfSize;
+                                                        } else {
+                                                            newPos[axisIndex] = targetValue;
+                                                        }
+                                                        return { ...obj, position: newPos };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="col-span-2 px-3 py-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all text-xs flex items-center justify-center gap-1"
+                                            title={cameraView === 'top' ? '上对齐 (顶部对齐)' : '上对齐 (顶部对齐)'}
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <line x1="6" y1="3" x2="18" y2="3" />
+                                                <rect x="8" y="7" width="8" height="6" />
+                                            </svg>
+                                            <span>上</span>
+                                        </button>
+
+                                        {/* 垂直居中对齐 - 根据相机视角自动选择轴向 */}
+                                        <button
+                                            onClick={() => {
+                                                const axisIndex = cameraView === 'top' ? 2 : 1;
+                                                const avgValue = selectedIds.reduce((sum, id) => {
+                                                    const obj = objects.find(o => o.id === id);
+                                                    return sum + (obj?.position[axisIndex] || 0);
+                                                }, 0) / selectedIds.length;
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        newPos[axisIndex] = avgValue;
+                                                        return { ...obj, position: newPos };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="col-span-3 px-3 py-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all text-xs flex items-center justify-center gap-1"
+                                            title={cameraView === 'top' ? '垂直居中对齐 (Z轴)' : '垂直居中对齐 (Y轴)'}
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <line x1="6" y1="12" x2="18" y2="12" />
+                                                <rect x="8" y="8" width="8" height="8" />
+                                            </svg>
+                                            <span>垂直居中</span>
+                                        </button>
+
+                                        {/* 下对齐 - 根据相机视角自动选择轴向 */}
+                                        <button
+                                            onClick={() => {
+                                                // 俯视图: Z轴最大值（屏幕下方）, 透视图/前视图: Y轴最小值（垂直向下）
+                                                const axisIndex = cameraView === 'top' ? 2 : 1;
+                                                
+                                                // 计算每个物体的实际底部位置
+                                                const getEdgePosition = (obj, isTop) => {
+                                                    const centerPos = obj.position[axisIndex] || 0;
+                                                    // 对于原点在中心的物体，需要加上/减去半个尺寸
+                                                    if (['wall', 'column', 'door', 'cube'].includes(obj.type)) {
+                                                        const halfSize = (obj.scale[axisIndex] || 1) / 2;
+                                                        return isTop ? centerPos + halfSize : centerPos - halfSize;
+                                                    }
+                                                    // 其他物体原点在底部
+                                                    return centerPos;
+                                                };
+                                                
+                                                const targetValue = cameraView === 'top' 
+                                                    ? Math.max(...selectedIds.map(id => {
+                                                        const obj = objects.find(o => o.id === id);
+                                                        return getEdgePosition(obj, true); // 俯视图：最大值是下方
+                                                    }))
+                                                    : Math.min(...selectedIds.map(id => {
+                                                        const obj = objects.find(o => o.id === id);
+                                                        return getEdgePosition(obj, false); // 透视图：最小值是下方
+                                                    }));
+                                                
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        // 计算新的中心位置
+                                                        if (['wall', 'column', 'door', 'cube'].includes(obj.type)) {
+                                                            const halfSize = (obj.scale[axisIndex] || 1) / 2;
+                                                            newPos[axisIndex] = cameraView === 'top' 
+                                                                ? targetValue - halfSize 
+                                                                : targetValue + halfSize;
+                                                        } else {
+                                                            newPos[axisIndex] = targetValue;
+                                                        }
+                                                        return { ...obj, position: newPos };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="col-span-2 px-3 py-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all text-xs flex items-center justify-center gap-1"
+                                            title={cameraView === 'top' ? '下对齐 (底部对齐)' : '下对齐 (底部对齐)'}
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <line x1="6" y1="21" x2="18" y2="21" />
+                                                <rect x="8" y="11" width="8" height="6" />
+                                            </svg>
+                                            <span>下</span>
+                                        </button>
+                                    </div>
+                                    
+                                    {/* 水平和垂直均分 */}
+                                    <div className="grid grid-cols-2 gap-2 mt-2">
+                                        <button
+                                            onClick={() => {
+                                                // 水平均分 - X轴均匀分布
                                                 if (selectedIds.length < 3) {
-                                                    alert('需要至少3个对象');
+                                                    alert('需要至少3个对象才能均分');
                                                     return;
                                                 }
                                                 const sorted = [...selectedIds].sort((a, b) => {
@@ -5487,59 +5735,179 @@ const App = () => {
                                                 setObjects(newObjects);
                                                 commitHistory(newObjects);
                                             }}
-                                            className="p-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all"
-                                            title="水平分布"
+                                            className="px-3 py-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all text-xs flex items-center justify-center gap-1"
+                                            title="水平均分 (X轴)"
                                         >
-                                            <img src="/icons/align/distribute-horizontal.png" alt="水平分布" className="w-5 h-5" onError={(e) => {
-                                                e.target.style.display = 'none';
-                                                e.target.nextSibling.style.display = 'block';
-                                            }} />
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'none' }}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                 <rect x="3" y="9" width="4" height="6" />
                                                 <rect x="10" y="9" width="4" height="6" />
                                                 <rect x="17" y="9" width="4" height="6" />
                                             </svg>
+                                            <span>水平均分</span>
                                         </button>
-
-                                        {/* 垂直分布 */}
                                         <button
                                             onClick={() => {
+                                                // 垂直均分 - Z轴均匀分布
                                                 if (selectedIds.length < 3) {
-                                                    alert('需要至少3个对象');
+                                                    alert('需要至少3个对象才能均分');
                                                     return;
                                                 }
+                                                const axisIndex = cameraView === 'top' ? 2 : 1;
                                                 const sorted = [...selectedIds].sort((a, b) => {
                                                     const objA = objects.find(o => o.id === a);
                                                     const objB = objects.find(o => o.id === b);
-                                                    return (objA?.position[2] || 0) - (objB?.position[2] || 0);
+                                                    return (objA?.position[axisIndex] || 0) - (objB?.position[axisIndex] || 0);
                                                 });
-                                                const firstZ = objects.find(o => o.id === sorted[0])?.position[2] || 0;
-                                                const lastZ = objects.find(o => o.id === sorted[sorted.length - 1])?.position[2] || 0;
-                                                const gap = (lastZ - firstZ) / (sorted.length - 1);
+                                                const firstValue = objects.find(o => o.id === sorted[0])?.position[axisIndex] || 0;
+                                                const lastValue = objects.find(o => o.id === sorted[sorted.length - 1])?.position[axisIndex] || 0;
+                                                const gap = (lastValue - firstValue) / (sorted.length - 1);
 
                                                 const newObjects = objects.map(obj => {
                                                     const index = sorted.indexOf(obj.id);
                                                     if (index !== -1) {
-                                                        return { ...obj, position: [obj.position[0], obj.position[1], firstZ + gap * index] };
+                                                        const newPos = [...obj.position];
+                                                        newPos[axisIndex] = firstValue + gap * index;
+                                                        return { ...obj, position: newPos };
                                                     }
                                                     return obj;
                                                 });
                                                 setObjects(newObjects);
                                                 commitHistory(newObjects);
                                             }}
-                                            className="p-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all"
-                                            title="垂直分布"
+                                            className="px-3 py-2 rounded bg-[#1a1a1a] text-gray-400 border border-[#2a2a2a] hover:bg-[#252525] hover:text-white hover:border-blue-500 transition-all text-xs flex items-center justify-center gap-1"
+                                            title={cameraView === 'top' ? '垂直均分 (Z轴)' : '垂直均分 (Y轴)'}
                                         >
-                                            <img src="/icons/align/distribute-vertical.png" alt="垂直分布" className="w-5 h-5" onError={(e) => {
-                                                e.target.style.display = 'none';
-                                                e.target.nextSibling.style.display = 'block';
-                                            }} />
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ display: 'none' }}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                 <rect x="9" y="3" width="6" height="4" />
                                                 <rect x="9" y="10" width="6" height="4" />
                                                 <rect x="9" y="17" width="6" height="4" />
                                             </svg>
+                                            <span>垂直均分</span>
                                         </button>
+                                    </div>
+                                </div>
+
+                                {/* 批量转换资产 - 使用切换模型样式 */}
+                                <div className="p-4 border-b border-[#1a1a1a] bg-[#0a0a0a]">
+                                    <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a]">
+                                        <div className="text-[10px] text-gray-500 mb-3 flex items-center gap-1"><RefreshCw size={10} /> 切换模型 </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => {
+                                                console.log('批量转换CNC - 选中对象数:', selectedIds.length);
+                                                try {
+                                                    const newObjects = objects.map(obj => {
+                                                        if (selectedIds.includes(obj.id)) {
+                                                            const newPos = [...obj.position];
+                                                            // CNC原点在底部，Y=0即可
+                                                            newPos[1] = 0;
+                                                            return {
+                                                                ...obj,
+                                                                type: 'cnc',
+                                                                modelUrl: `${import.meta.env.BASE_URL}cnc.glb`,
+                                                                modelScale: 1,
+                                                                name: `CNC加工中心`,
+                                                                scale: [1, 1, 1],
+                                                                position: newPos,
+                                                                rotation: [0, 0, 0]
+                                                            };
+                                                        }
+                                                        return obj;
+                                                    });
+                                                    setObjects(newObjects);
+                                                    commitHistory(newObjects);
+                                                    console.log('批量转换CNC完成');
+                                                } catch (error) {
+                                                    console.error('批量转换CNC失败:', error);
+                                                }
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                        >
+                                            <Server size={20} />
+                                            <span className="text-[10px]">CNC</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        // 正方体原点在中心，抬高半个高度
+                                                        newPos[1] = 0.5;
+                                                        return {
+                                                            ...obj,
+                                                            type: 'cube',
+                                                            modelUrl: null,
+                                                            name: `正方体`,
+                                                            scale: [1, 1, 1],
+                                                            position: newPos,
+                                                            rotation: [0, 0, 0]
+                                                        };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                        >
+                                            <Box size={20} />
+                                            <span className="text-[10px]">正方体</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        // 柱子原点在中心，高度4米，抬高2米
+                                                        newPos[1] = 2;
+                                                        return {
+                                                            ...obj,
+                                                            type: 'column',
+                                                            modelUrl: null,
+                                                            name: `标准柱子`,
+                                                            scale: [0.6, 4, 0.6],
+                                                            position: newPos,
+                                                            rotation: [0, 0, 0]
+                                                        };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                        >
+                                            <Columns size={20} />
+                                            <span className="text-[10px]">柱子</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        // 墙体原点在中心，高度3米，抬高1.5米
+                                                        newPos[1] = 1.5;
+                                                        return {
+                                                            ...obj,
+                                                            type: 'wall',
+                                                            modelUrl: null,
+                                                            name: `标准墙体`,
+                                                            scale: [4, 3, 0.2],
+                                                            position: newPos,
+                                                            rotation: [0, 0, 0]
+                                                        };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                        >
+                                            <BrickWall size={20} />
+                                            <span className="text-[10px]">墙体</span>
+                                        </button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -5547,7 +5915,7 @@ const App = () => {
                                 <PropSection title="位置">
                                     <div className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">位置 X</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">位置 X</label>
                                             <SmartInput
                                                 value={parseFloat((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5566,11 +5934,12 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">位置 Y</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">位置 Y</label>
                                             <SmartInput
                                                 value={parseFloat((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5589,11 +5958,12 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">位置 Z</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">位置 Z</label>
                                             <SmartInput
                                                 value={parseFloat((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5612,6 +5982,7 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
@@ -5622,7 +5993,7 @@ const App = () => {
                                 <PropSection title="旋转">
                                     <div className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">旋转 X</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">旋转 X</label>
                                             <SmartInput
                                                 value={parseFloat((Math.round((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5641,11 +6012,12 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">旋转 Y</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">旋转 Y</label>
                                             <SmartInput
                                                 value={parseFloat((Math.round((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5664,11 +6036,12 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">旋转 Z</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">旋转 Z</label>
                                             <SmartInput
                                                 value={parseFloat((Math.round((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5687,6 +6060,7 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
@@ -5697,7 +6071,7 @@ const App = () => {
                                 <PropSection title="缩放">
                                     <div className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">缩放 X</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">缩放 X</label>
                                             <SmartInput
                                                 value={parseFloat((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5716,11 +6090,12 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">缩放 Y</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">缩放 Y</label>
                                             <SmartInput
                                                 value={parseFloat((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5739,11 +6114,12 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-500 w-12 text-right">缩放 Z</label>
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">缩放 Z</label>
                                             <SmartInput
                                                 value={parseFloat((selectedIds.reduce((sum, id) => {
                                                     const obj = objects.find(o => o.id === id);
@@ -5762,6 +6138,7 @@ const App = () => {
                                                         return obj;
                                                     });
                                                     setObjects(newObjects);
+                                                    commitHistory(newObjects);
                                                 }}
                                             />
                                         </div>
@@ -5828,8 +6205,8 @@ const App = () => {
                             </div>
                         ) : selectedObject ? (
                             <div className="pb-10">
-                                {/* ... (Property sections same as before) ... */}
-                                <div className="p-4 border-b border-[#1a1a1a]">
+                                {/* 对象属性面板 - 固定标题 */}
+                                <div className="sticky top-0 z-10 p-4 border-b border-[#1a1a1a] bg-[#0f0f0f]">
                                     <div className="flex items-center gap-2 mb-3">
                                         <div className="w-8 h-8 bg-[#1a1a1a] border border-[#333] rounded flex items-center justify-center text-blue-500">
                                             {selectedObject.type.includes('wall') ? <BrickWall size={16} /> : <BoxIcon size={16} />}
@@ -5854,12 +6231,58 @@ const App = () => {
                                     )}
                                 </div>
                                 {['cnc', 'column', 'door', 'custom_model'].includes(selectedObject.type) && (
-                                    <PropSection title="模型资源">
+                                    <div className="border-b border-[#1a1a1a]">
+                                    <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
                                         {selectedObject.modelUrl && (
-                                            <div className="mb-3 px-1"><PropRow label="模型缩放" vertical> <div className="flex flex-col w-full gap-2"><div className="flex items-center gap-2 w-full"><input type="range" min="0.001" max="10" step="0.001" value={selectedObject.modelScale || 1} onChange={(e) => updateObject(selectedId, 'modelScale', parseFloat(e.target.value))} className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500" /><div className="w-14"><SmartInput value={selectedObject.modelScale || 0.1} onChange={(val) => updateObject(selectedId, 'modelScale', val)} className="text-center" /></div></div><div className="flex w-full bg-[#1a1a1a] rounded overflow-hidden border border-[#2a2a2a] mt-1"><button onClick={() => updateObject(selectedId, 'modelScale', 0.001)} className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors border-r border-[#2a2a2a]" title="毫米单位">mm</button><button onClick={() => updateObject(selectedId, 'modelScale', 0.01)} className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors border-r border-[#2a2a2a]" title="厘米单位">cm</button><button onClick={() => updateObject(selectedId, 'modelScale', 1)} className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors" title="米单位">m</button></div></div></PropRow></div>
+                                            <div className="mb-3">
+                                                <div className="text-[11px] text-gray-500 mb-2">模型缩放</div>
+                                                <div className="flex flex-col w-full gap-2">
+                                                    <div className="flex items-center gap-2 w-full">
+                                                        <input 
+                                                            type="range" 
+                                                            min="0.001" 
+                                                            max="10" 
+                                                            step="0.001" 
+                                                            value={selectedObject.modelScale || 1} 
+                                                            onChange={(e) => updateObject(selectedId, 'modelScale', parseFloat(e.target.value))} 
+                                                            className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500" 
+                                                        />
+                                                        <input
+                                                            type="number"
+                                                            value={selectedObject.modelScale || 1}
+                                                            onChange={(e) => updateObject(selectedId, 'modelScale', parseFloat(e.target.value) || 0.1)}
+                                                            step="0.001"
+                                                            className="w-20 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
+                                                        />
+                                                    </div>
+                                                    <div className="flex w-full bg-[#1a1a1a] rounded overflow-hidden border border-[#2a2a2a]">
+                                                        <button 
+                                                            onClick={() => updateObject(selectedId, 'modelScale', 0.001)} 
+                                                            className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors border-r border-[#2a2a2a]" 
+                                                            title="毫米单位"
+                                                        >
+                                                            mm
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => updateObject(selectedId, 'modelScale', 0.01)} 
+                                                            className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors border-r border-[#2a2a2a]" 
+                                                            title="厘米单位"
+                                                        >
+                                                            cm
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => updateObject(selectedId, 'modelScale', 1)} 
+                                                            className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors" 
+                                                            title="米单位"
+                                                        >
+                                                            m
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         )}
                                         <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a] text-center mt-2">
-                                            <div className="text-[10px] text-gray-500 mb-2 text-left flex items-center gap-1"><RefreshCw size={10} /> 切换资产 (Switch Asset):</div>
+                                            <div className="text-[10px] text-gray-500 mb-2 text-left flex items-center gap-1"><RefreshCw size={10} /> 切换资产 </div>
                                             {customAssets.length > 0 ? (
                                                 <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto custom-scrollbar">
                                                     {customAssets.map((asset, idx) => (<button key={idx} onClick={() => updateObject(selectedId, 'modelUrl', asset.modelUrl)} className={`flex flex-col items-center justify-center p-2 rounded border ${selectedObject.modelUrl === asset.modelUrl ? 'border-blue-500 bg-blue-500/10 text-white' : 'border-[#333] text-gray-500 hover:border-gray-500 hover:text-gray-300'} transition-all`} title={asset.label}><Box size={16} className="mb-1 text-blue-400" /><span className="text-[9px] w-full truncate">{asset.label}</span></button>))}
@@ -5867,11 +6290,13 @@ const App = () => {
                                             ) : (<div className="text-[10px] text-gray-600 py-4 border border-dashed border-[#333] rounded">暂无自定义资产<br />请在左侧资源库上传</div>)}
                                             {selectedObject.modelUrl && (<button onClick={() => updateObject(selectedId, 'modelUrl', null)} className="w-full mt-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-500/30 rounded text-[10px] flex items-center justify-center gap-2 transition-colors"><RefreshCw size={12} /> 重置为默认几何体</button>)}
                                         </div>
-                                    </PropSection>
+                                    </div>
+                                    </div>
                                 )}
 
                                 {selectedObject.type === 'waypoint' && (
-                                    <PropSection title="模型资源">
+                                    <div className="border-b border-[#1a1a1a]">
+                                    <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
                                         <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a] text-center">
                                             <div className="text-[10px] text-gray-500 mb-3 text-left flex items-center gap-1"><RefreshCw size={10} /> 切换模型 (Switch Model):</div>
                                             <div className="grid grid-cols-2 gap-2 mb-3">
@@ -5942,7 +6367,8 @@ const App = () => {
                                                 </>
                                             )}
                                         </div>
-                                    </PropSection>
+                                    </div>
+                                    </div>
                                 )}
 
                                 {selectedObject.type === 'point' && (
@@ -6016,7 +6442,8 @@ const App = () => {
                                     </PropSection>
                                 )}
 
-                                <PropSection title="几何尺寸">
+                                <div>
+                                <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
                                     {selectedObject.type === 'curved_wall' && (
                                         <>
                                             <div className="space-y-3">
@@ -6069,7 +6496,7 @@ const App = () => {
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <Ruler size={12} className="text-gray-500" />
-                                                <span className="text-[10px] text-gray-500 font-bold uppercase">尺寸 (Size)</span>
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">尺寸</span>
                                             </div>
                                             <div className="flex gap-2">
                                                 <div className="flex-1">
@@ -6106,7 +6533,7 @@ const App = () => {
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <Ruler size={12} className="text-gray-500" />
-                                                <span className="text-[10px] text-gray-500 font-bold uppercase">尺寸 (Size)</span>
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">尺寸</span>
                                             </div>
                                             <div className="flex gap-2">
                                                 <div className="flex-1">
@@ -6139,8 +6566,10 @@ const App = () => {
                                             </div>
                                         </div>
                                     )}
-                                </PropSection>
-                                {!isEditingPoints && selectedObject.type !== 'path' && (<><PropSection title="变换" defaultOpen={true}>
+                                </div>
+                                </div>
+                                {!isEditingPoints && selectedObject.type !== 'path' && (<><div>
+                                <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
                                     {/* 位置 Position - 基础地图不显示 */}
                                     {!selectedObject.isBaseMap && (
                                         <div className="space-y-2 mb-4">
@@ -6257,39 +6686,43 @@ const App = () => {
                                             </div>
                                         </div>
                                     )}
-                                </PropSection></>)}
-                                <PropSection title="外观材质">
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-400 w-16">颜色</label>
-                                            <input
-                                                type="color"
-                                                value={selectedObject.color}
-                                                onChange={(e) => updateObject(selectedId, 'color', e.target.value)}
-                                                className="w-10 h-10 cursor-pointer border border-[#2a2a2a] bg-[#1a1a1a] rounded p-1"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={selectedObject.color}
-                                                onChange={(e) => updateObject(selectedId, 'color', e.target.value)}
-                                                className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors font-mono uppercase"
-                                            />
+                                </div>
+                                </div></>)}
+                                {/* 外观材质 - 仅对非自定义模型对象显示 */}
+                                {!['cnc', 'custom_model'].includes(selectedObject.type) && !selectedObject.modelUrl && (
+                                    <PropSection title="外观材质">
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-[11px] text-gray-400 w-16">颜色</label>
+                                                <input
+                                                    type="color"
+                                                    value={selectedObject.color}
+                                                    onChange={(e) => updateObject(selectedId, 'color', e.target.value)}
+                                                    className="w-10 h-10 cursor-pointer border border-[#2a2a2a] bg-[#1a1a1a] rounded p-1"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={selectedObject.color}
+                                                    onChange={(e) => updateObject(selectedId, 'color', e.target.value)}
+                                                    className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors font-mono uppercase"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-[11px] text-gray-400 w-16">透明度</label>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="1"
+                                                    step="0.01"
+                                                    value={selectedObject.opacity}
+                                                    onChange={(e) => updateObject(selectedId, 'opacity', parseFloat(e.target.value))}
+                                                    className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                                />
+                                                <span className="text-xs text-gray-400 w-12 text-right">{(selectedObject.opacity * 100).toFixed(0)}%</span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-[11px] text-gray-400 w-16">透明度</label>
-                                            <input
-                                                type="range"
-                                                min="0"
-                                                max="1"
-                                                step="0.01"
-                                                value={selectedObject.opacity}
-                                                onChange={(e) => updateObject(selectedId, 'opacity', parseFloat(e.target.value))}
-                                                className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                            />
-                                            <span className="text-xs text-gray-400 w-12 text-right">{(selectedObject.opacity * 100).toFixed(0)}%</span>
-                                        </div>
-                                    </div>
-                                </PropSection>
+                                    </PropSection>
+                                )}
                                 <div className="p-4 mt-4 border-t border-[#1a1a1a]"><button onClick={deleteSelected} className="w-full py-2 rounded-md bg-[#221111] text-red-500 border border-red-900/30 hover:bg-red-900/20 text-xs font-medium transition-all flex items-center justify-center gap-2"><Trash2 size={14} /> 删除对象</button></div>
                             </div>
                         ) : selectedIds.length > 1 ? (
