@@ -5195,7 +5195,25 @@ const App = () => {
                     </div>
                 )}
 
-                <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }}>
+                <Canvas 
+                    shadows 
+                    dpr={[1, 2]} 
+                    gl={{ 
+                        antialias: true,
+                        preserveDrawingBuffer: true,
+                        powerPreference: 'high-performance'
+                    }}
+                    onCreated={({ gl }) => {
+                        // 处理WebGL上下文丢失
+                        gl.domElement.addEventListener('webglcontextlost', (e) => {
+                            e.preventDefault();
+                            console.warn('⚠️ WebGL上下文丢失，尝试恢复...');
+                        });
+                        gl.domElement.addEventListener('webglcontextrestored', () => {
+                            console.log('✅ WebGL上下文已恢复');
+                        });
+                    }}
+                >
                     {/* 获取 scene 引用 */}
                     <SceneRefGetter setSceneRef={setSceneRef} />
 
