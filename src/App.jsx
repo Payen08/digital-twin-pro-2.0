@@ -3709,27 +3709,21 @@ const App = () => {
 
     // 计算用于显示的临时对象列表（包含拖动偏移和楼层过滤）
     const displayObjects = useMemo(() => {
-        // 1. 楼层过滤和高亮
-        const filteredObjects = objects.map(obj => {
-            // 如果对象有 floorLevel 属性，检查是否匹配当前楼层
+        // 1. 楼层过滤 - 只显示当前楼层的对象
+        const filteredObjects = objects.filter(obj => {
+            // 如果对象有 floorLevel 属性，只显示当前楼层的对象
             if (obj.floorLevel && currentFloorLevel) {
-                const isCurrentFloor = obj.floorLevel === currentFloorLevel.name;
-                // 为非当前楼层的对象添加半透明标记
-                return {
-                    ...obj,
-                    opacity: isCurrentFloor ? (obj.opacity || 1) : 0.2,
-                    isOtherFloor: !isCurrentFloor
-                };
+                return obj.floorLevel === currentFloorLevel.name;
             }
-            // 如果对象没有楼层信息，默认正常显示（如基础地面、底图等）
-            return obj;
+            // 如果对象没有楼层信息，默认显示（如基础地面、底图等）
+            return true;
         });
 
         // 调试信息：显示楼层过滤结果
         if (currentFloorLevel) {
-            const currentFloorObjects = filteredObjects.filter(o => o.floorLevel === currentFloorLevel.name);
-            const otherFloorObjects = filteredObjects.filter(o => o.floorLevel && o.floorLevel !== currentFloorLevel.name);
-            console.log(`🏢 当前楼层: ${currentFloorLevel.name}, 对象: ${currentFloorObjects.length}个, 其他楼层: ${otherFloorObjects.length}个`);
+            const totalObjects = objects.filter(o => o.floorLevel).length;
+            const hiddenObjects = objects.filter(o => o.floorLevel && o.floorLevel !== currentFloorLevel.name).length;
+            console.log(`🏢 当前楼层: ${currentFloorLevel.name}, 显示: ${filteredObjects.length}个对象, 隐藏: ${hiddenObjects}个对象 (总共: ${totalObjects}个)`);
         }
 
         // 2. 处理组合对象的相对位置
