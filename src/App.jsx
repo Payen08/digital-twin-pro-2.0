@@ -1984,8 +1984,13 @@ const App = () => {
     }, [floors, currentFloorId]);
 
     const currentFloorLevel = useMemo(() => {
-        if (!currentScene || !currentScene.floorLevels) return null;
-        return currentScene.floorLevels.find(fl => fl.id === currentFloorLevelId) || currentScene.floorLevels[0];
+        if (!currentScene || !currentScene.floorLevels) {
+            console.warn('⚠️ 当前场景没有楼层配置');
+            return null;
+        }
+        const level = currentScene.floorLevels.find(fl => fl.id === currentFloorLevelId) || currentScene.floorLevels[0];
+        console.log('🏢 当前楼层:', level?.name, '| ID:', level?.id);
+        return level;
     }, [currentScene, currentFloorLevelId]);
 
     // 楼层管理函数
@@ -3719,6 +3724,13 @@ const App = () => {
             // 如果对象没有楼层信息，默认正常显示（如基础地面、底图等）
             return obj;
         });
+
+        // 调试信息：显示楼层过滤结果
+        if (currentFloorLevel) {
+            const currentFloorObjects = filteredObjects.filter(o => o.floorLevel === currentFloorLevel.name);
+            const otherFloorObjects = filteredObjects.filter(o => o.floorLevel && o.floorLevel !== currentFloorLevel.name);
+            console.log(`🏢 当前楼层: ${currentFloorLevel.name}, 对象: ${currentFloorObjects.length}个, 其他楼层: ${otherFloorObjects.length}个`);
+        }
 
         // 2. 处理组合对象的相对位置
         const objectsWithGroupPosition = filteredObjects.map(obj => {
