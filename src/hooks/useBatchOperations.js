@@ -26,15 +26,32 @@ export function useBatchOperations(objects, setObjects, commitHistory) {
     if (!selectedIds || selectedIds.length === 0) return;
     
     const newObjects = [];
+    const idMapping = {}; // 用于映射旧ID到新ID
+    
+    // 第一遍：创建所有新对象并建立ID映射
     selectedIds.forEach(id => {
       const obj = objects.find(o => o.id === id);
       if (obj) {
+        const newId = uuidv4();
+        idMapping[id] = newId;
+        
         const newObj = {
           ...obj,
-          id: uuidv4(),
+          id: newId,
           name: `${obj.name} 副本`,
           position: [obj.position[0] + 2, obj.position[1], obj.position[2]]
         };
+        
+        // 如果是组对象，更新children的ID映射
+        if (obj.type === 'group' && obj.children) {
+          newObj.children = obj.children.map(childId => idMapping[childId] || childId);
+        }
+        
+        // 如果有父对象，更新parentId
+        if (obj.parentId && idMapping[obj.parentId]) {
+          newObj.parentId = idMapping[obj.parentId];
+        }
+        
         newObjects.push(newObj);
       }
     });
@@ -54,16 +71,14 @@ export function useBatchOperations(objects, setObjects, commitHistory) {
       return;
     }
     
-    // 计算中心点
+    // 计算中心点 - 只计算X和Z的平均值，Y保持为0（地面高度）
     const avgX = selectedIds.reduce((sum, id) => {
       const obj = objects.find(o => o.id === id);
       return sum + (obj?.position[0] || 0);
     }, 0) / selectedIds.length;
     
-    const avgY = selectedIds.reduce((sum, id) => {
-      const obj = objects.find(o => o.id === id);
-      return sum + (obj?.position[1] || 0);
-    }, 0) / selectedIds.length;
+    // Y轴保持为0，避免在俯视图下出现高度问题
+    const avgY = 0;
     
     const avgZ = selectedIds.reduce((sum, id) => {
       const obj = objects.find(o => o.id === id);

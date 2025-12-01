@@ -2719,15 +2719,22 @@ const App = () => {
             return;
         }
 
+        // 如果选择的是组对象，自动选中所有子对象
+        let idsToSelect = [id];
+        if (obj && obj.type === 'group' && obj.children) {
+            idsToSelect = [id, ...obj.children];
+            console.log('📦 选中组对象及其子对象:', idsToSelect);
+        }
+
         if (multiSelect) {
             const newIds = selectedIds.includes(id)
-                ? selectedIds.filter(i => i !== id)
-                : [...selectedIds, id];
+                ? selectedIds.filter(i => !idsToSelect.includes(i)) // 取消选择组及其子对象
+                : [...selectedIds, ...idsToSelect]; // 添加组及其子对象
             setSelectedIds(newIds);
             setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
         } else {
             setSelectedId(id);
-            setSelectedIds([id]);
+            setSelectedIds(idsToSelect);
         }
     }, [toolMode, selectedIds, objects, currentFloorLevel]);
 
