@@ -1332,7 +1332,7 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
     const groupRef = useRef();
     const [bounds, setBounds] = useState(null);
 
-    // 计算组的包围盒
+    // 计算组的包围盒（基于relativePosition）
     useEffect(() => {
         if (!children || children.length === 0) return;
 
@@ -1340,7 +1340,8 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
         let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
         children.forEach(child => {
-            const pos = child.position;
+            // 使用relativePosition而不是绝对position
+            const pos = child.relativePosition || [0, 0, 0];
             const scale = child.scale || [1, 1, 1];
             
             minX = Math.min(minX, pos[0] - scale[0] / 2);
@@ -1368,9 +1369,10 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
     if (!bounds) return null;
 
     return (
-        <group ref={groupRef} position={bounds.center}>
-            {/* 不可见但可点击的包围盒 */}
+        <group ref={groupRef} position={group.position}>
+            {/* 不可见但可点击的包围盒 - 相对于组中心偏移 */}
             <mesh
+                position={bounds.center}
                 onClick={(e) => {
                     e.stopPropagation();
                     onSelect(group.id, e.shiftKey, e.ctrlKey || e.metaKey);
@@ -1388,9 +1390,9 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
                 <meshBasicMaterial visible={false} />
             </mesh>
             
-            {/* 选中时显示边框 */}
+            {/* 选中时显示边框 - 相对于组中心偏移 */}
             {isSelected && (
-                <lineSegments>
+                <lineSegments position={bounds.center}>
                     <edgesGeometry args={[new THREE.BoxGeometry(...bounds.size)]} />
                     <lineBasicMaterial color="#60a5fa" linewidth={2} />
                 </lineSegments>
