@@ -3294,15 +3294,17 @@ const App = () => {
         }
     };
 
-    // 批量替换选中点位的模型
+    // 批量替换选中对象的模型
     const batchReplaceWaypointModels = (modelType, customAsset = null) => {
-        const waypointIds = selectedIds.filter(id => {
+        // 支持所有可替换模型的对象类型
+        const replaceableTypes = ['waypoint', 'cube', 'cnc', 'column', 'door', 'custom_model'];
+        const replaceableIds = selectedIds.filter(id => {
             const obj = objects.find(o => o.id === id);
-            return obj && obj.type === 'waypoint';
+            return obj && replaceableTypes.includes(obj.type);
         });
 
-        if (waypointIds.length === 0) {
-            alert('请先选择要替换的点位！');
+        if (replaceableIds.length === 0) {
+            alert('请先选择要替换的对象！');
             return;
         }
 
@@ -3324,7 +3326,7 @@ const App = () => {
         }
 
         const newObjects = objects.map(obj => {
-            if (waypointIds.includes(obj.id)) {
+            if (replaceableIds.includes(obj.id)) {
                 return {
                     ...obj,
                     modelUrl: modelUrl,
@@ -3339,7 +3341,7 @@ const App = () => {
         });
 
         commitHistory(newObjects);
-        alert(`✅ 已将 ${waypointIds.length} 个点位替换为"${assetLabel}"模型`);
+        alert(`✅ 已将 ${replaceableIds.length} 个对象替换为"${assetLabel}"模型`);
     };
 
     // 从JSON加载地图
@@ -7192,9 +7194,15 @@ const App = () => {
                                     </div>
                                 </div>
 
-                                {/* 批量替换 Waypoint 模型 */}
-                                {selectedIds.filter(id => objects.find(o => o.id === id && o.type === 'waypoint')).length > 0 && (
-                                    <PropSection title={`批量替换模型 (${selectedIds.filter(id => objects.find(o => o.id === id && o.type === 'waypoint')).length} 个点位)`}>
+                                {/* 批量替换模型 */}
+                                {(() => {
+                                    const replaceableTypes = ['waypoint', 'cube', 'cnc', 'column', 'door', 'custom_model'];
+                                    const replaceableCount = selectedIds.filter(id => {
+                                        const obj = objects.find(o => o.id === id);
+                                        return obj && replaceableTypes.includes(obj.type);
+                                    }).length;
+                                    return replaceableCount > 0 && (
+                                        <PropSection title={`批量替换模型 (${replaceableCount} 个对象)`}>
                                         <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a]">
                                             <div className="text-[10px] text-gray-500 mb-3 text-left">基础模型:</div>
                                             <div className="grid grid-cols-2 gap-2 mb-3">
@@ -7227,7 +7235,8 @@ const App = () => {
                                             )}
                                         </div>
                                     </PropSection>
-                                )}
+                                    );
+                                })()}
 
                                 <div className="p-4 mt-4 border-t border-[#1a1a1a]">
                                     <button onClick={deleteSelected} className="w-full py-2 rounded-md bg-[#221111] text-red-500 border border-red-900/30 hover:bg-red-900/20 text-xs font-medium transition-all flex items-center justify-center gap-2">
