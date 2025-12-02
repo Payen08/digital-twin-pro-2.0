@@ -666,7 +666,7 @@ const Interactive2DObject = ({ obj, isSelected, transformMode, toolMode, onSelec
                 scale={obj.scale}
             >
                 <mesh
-                    onClick={(e) => { e.stopPropagation(); if (!obj.locked) onSelect(obj.id, e.shiftKey); }}
+                    onClick={(e) => { e.stopPropagation(); if (!obj.locked) onSelect(obj.id, e.shiftKey, e.ctrlKey || e.metaKey); }}
                     position={[0, 0.05, 0]}
                     rotation={[-Math.PI / 2, 0, 0]}
                 >
@@ -1070,7 +1070,7 @@ const MapImage = ({ data, isSelected, onSelect }) => {
             ref={meshRef}
             position={data.position}
             rotation={[-Math.PI / 2, 0, 0]}
-            onClick={(e) => { e.stopPropagation(); if (!data.locked) onSelect(data.id, e.shiftKey); }}
+            onClick={(e) => { e.stopPropagation(); if (!data.locked) onSelect(data.id, e.shiftKey, e.ctrlKey || e.metaKey); }}
         >
             <planeGeometry args={[data.scale[0], data.scale[2]]} />
             <meshBasicMaterial
@@ -1183,7 +1183,7 @@ const WaypointMarker = ({ data, isSelected, onSelect }) => {
             {/* 点位圆柱 */}
             <mesh
                 ref={meshRef}
-                onClick={(e) => { e.stopPropagation(); onSelect(data.id, e.shiftKey); }}
+                onClick={(e) => { e.stopPropagation(); onSelect(data.id, e.shiftKey, e.ctrlKey || e.metaKey); }}
                 onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
                 onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
             >
@@ -1230,7 +1230,7 @@ const PathLine = ({ data, isSelected, onSelect }) => {
             points={points}
             color={isSelected ? '#2196F3' : data.color}
             lineWidth={isSelected ? 3 : 2}
-            onClick={(e) => { e.stopPropagation(); onSelect(data.id, e.shiftKey); }}
+            onClick={(e) => { e.stopPropagation(); onSelect(data.id, e.shiftKey, e.ctrlKey || e.metaKey); }}
         />
     );
 };
@@ -1269,7 +1269,7 @@ const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMod
     }, [data.type, data.id, isSelected, isEditingPoints, data.points]);
     return (
         <>
-            <group ref={groupRef} name={data.id} position={data.position} rotation={data.rotation} scale={data.scale} onClick={(e) => { e.stopPropagation(); onSelect(data.id, e.shiftKey); }} onDoubleClick={(e) => { e.stopPropagation(); if (onToggleEdit) onToggleEdit(data.id); }} onPointerOver={(e) => { e.stopPropagation(); if (!isSelected) setHovered(true); }} onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}>
+            <group ref={groupRef} name={data.id} position={data.position} rotation={data.rotation} scale={data.scale} onClick={(e) => { e.stopPropagation(); onSelect(data.id, e.shiftKey, e.ctrlKey || e.metaKey); }} onDoubleClick={(e) => { e.stopPropagation(); if (onToggleEdit) onToggleEdit(data.id); }} onPointerOver={(e) => { e.stopPropagation(); if (!isSelected) setHovered(true); }} onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}>
                 {data.type === 'curved_wall' ? (<><ContinuousCurveMesh points={data.points} thickness={data.thickness || 0.2} height={data.height || 3} tension={data.tension !== undefined ? data.tension : 0.5} closed={data.closed} color={data.color} opacity={data.opacity || 1} isSelected={isSelected} hovered={hovered && !isSelected} />{isSelected && isEditingPoints && (<CurveEditor points={data.points} onUpdatePoint={(idx, newPos) => { const newPoints = [...data.points]; newPoints[idx] = newPos; onUpdatePoints(data.id, newPoints, false); }} onDragEnd={() => { onUpdatePoints(data.id, data.points, true); }} onAddPoint={(newPoint) => { const newPoints = [...data.points, newPoint]; onUpdatePoints(data.id, newPoints, true); }} />)}</>) : data.type === 'polygon_floor' ? (<><PolygonFloorMesh points={data.points} color={data.color} opacity={data.opacity || 1} isSelected={isSelected} hovered={hovered && !isSelected} />{isSelected && isEditingPoints && (<CurveEditor points={data.points} onUpdatePoint={(idx, newPos) => { const newPoints = [...data.points]; newPoints[idx] = newPos; onUpdatePoints(data.id, newPoints, false); }} onDragEnd={() => { onUpdatePoints(data.id, newPoints, true); }} onAddPoint={(newPoint) => { const newPoints = [...data.points, newPoint]; onUpdatePoints(data.id, newPoints, true); }} />)}</>) : (
                     <React.Fragment>
                         {data.modelUrl ? (<Suspense fallback={<mesh><boxGeometry args={[1, 1, 1]} /><meshBasicMaterial color="gray" wireframe /></mesh>}><Gltf key={data.modelUrl} src={data.modelUrl} castShadow receiveShadow scale={data.modelScale || 1} />{(isSelected || hovered) && <mesh><boxGeometry args={[1.05, 1.05, 1.05]} /><meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.3} /></mesh>}</Suspense>) : (<mesh castShadow receiveShadow>{(data.type === 'wall' || data.type === 'floor' || data.type === 'column' || data.type === 'door' || data.type === 'cnc' || data.type === 'cube' || data.type === 'custom_model') && (<boxGeometry args={[1, 1, 1]} />)}<meshStandardMaterial color={data.color} roughness={0.5} metalness={0.1} opacity={data.opacity || 1} transparent={(data.opacity || 1) < 1} emissive={!isFloorType && isSelected ? '#444' : (!isFloorType && hovered ? '#222' : '#000')} />{(isSelected || hovered) && <Edges threshold={15} scale={1.001} color={isSelected ? "#60a5fa" : "#ffffff"} />}</mesh>)}
@@ -2838,7 +2838,7 @@ const App = () => {
     }, []);
 
     // 处理对象选择
-    const handleSelect = useCallback((id, multiSelect = false) => {
+    const handleSelect = useCallback((id, multiSelect = false, ctrlKey = false) => {
         if (toolMode !== 'select') return;
 
         // 检查对象是否属于其他楼层，如果是则不允许选择
@@ -2848,21 +2848,43 @@ const App = () => {
             return;
         }
 
-        // 如果选择的是组对象，自动选中所有子对象
         let idsToSelect = [id];
-        if (obj && obj.type === 'group' && obj.children) {
+        
+        // 场景E：Ctrl+点击 - 穿透选择子对象（忽略父组）
+        if (ctrlKey && obj && obj.parentId) {
+            console.log('🎯 穿透选择子对象:', id);
+            idsToSelect = [id];
+        }
+        // 场景D：默认点击有parentId的对象 - 选中最顶层父组
+        else if (obj && obj.parentId && !multiSelect) {
+            // 向上追溯找到最顶层的父组
+            let topParent = obj;
+            let currentParent = objects.find(o => o.id === obj.parentId);
+            while (currentParent) {
+                topParent = currentParent;
+                currentParent = objects.find(o => o.id === currentParent.parentId);
+            }
+            console.log('📦 自动选中顶层父组:', topParent.id, topParent.name);
+            idsToSelect = [topParent.id];
+            // 如果父组有子对象，也加入选择（用于整体移动）
+            if (topParent.type === 'group' && topParent.children) {
+                idsToSelect = [topParent.id, ...topParent.children];
+            }
+        }
+        // 选择组对象 - 自动选中所有子对象
+        else if (obj && obj.type === 'group' && obj.children) {
             idsToSelect = [id, ...obj.children];
             console.log('📦 选中组对象及其子对象:', idsToSelect);
         }
 
         if (multiSelect) {
             const newIds = selectedIds.includes(id)
-                ? selectedIds.filter(i => !idsToSelect.includes(i)) // 取消选择组及其子对象
-                : [...selectedIds, ...idsToSelect]; // 添加组及其子对象
+                ? selectedIds.filter(i => !idsToSelect.includes(i)) // 取消选择
+                : [...selectedIds, ...idsToSelect]; // 添加选择
             setSelectedIds(newIds);
             setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
         } else {
-            setSelectedId(id);
+            setSelectedId(idsToSelect[0]); // 设置主选中ID为父组ID
             setSelectedIds(idsToSelect);
         }
     }, [toolMode, selectedIds, objects, currentFloorLevel]);
@@ -3816,16 +3838,32 @@ const App = () => {
         const finalOffset = dragOffsetRef.current || dragOffset;
         
         if (finalOffset && selectedIds.length > 0) {
-            // 先更新对象位置
+            // 场景C：层级过滤 - 如果父组和子对象都被选中，只移动父组
+            // 场景A：仅选中组 - 只移动组对象
+            // 场景B：仅选中子对象 - 更新子对象的relativePosition
+            // 场景G：混合选择 - 子对象更新relativePosition，独立对象更新position
+            
             const updatedObjects = objects.map(obj => {
                 if (!selectedIds.includes(obj.id)) return obj;
 
-                // 如果是子对象（有 parentId），不更新位置，因为它会通过 relativePosition 跟随父组
+                // 场景C：如果是子对象且其父组也被选中，跳过（父组会带动它）
                 if (obj.parentId && selectedIds.includes(obj.parentId)) {
                     return obj;
                 }
 
-                // 更新独立对象或组对象的位置
+                // 场景B/G：如果是子对象但父组未被选中，更新relativePosition
+                if (obj.parentId && !selectedIds.includes(obj.parentId)) {
+                    return {
+                        ...obj,
+                        relativePosition: [
+                            (obj.relativePosition?.[0] || 0) + finalOffset[0],
+                            (obj.relativePosition?.[1] || 0) + finalOffset[1],
+                            (obj.relativePosition?.[2] || 0) + finalOffset[2]
+                        ]
+                    };
+                }
+
+                // 场景A/F：更新独立对象或组对象的position
                 return {
                     ...obj,
                     position: [
