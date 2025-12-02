@@ -6736,7 +6736,7 @@ const App = () => {
                                     </div>
                                 )}
 
-                                {selectedObject.type === 'waypoint' && (
+                                {['waypoint', 'cube', 'cnc', 'column', 'door', 'custom_model'].includes(selectedObject.type) && (
                                     <div className="border-b border-[#1a1a1a]">
                                     <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
                                         <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a] text-center">
