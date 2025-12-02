@@ -3838,6 +3838,18 @@ const App = () => {
         const finalOffset = dragOffsetRef.current || dragOffset;
         
         if (finalOffset && selectedIds.length > 0) {
+            console.log('🎯 handleDragEnd:', {
+                finalOffset,
+                selectedIds,
+                selectedObjects: objects.filter(o => selectedIds.includes(o.id)).map(o => ({
+                    id: o.id,
+                    name: o.name,
+                    type: o.type,
+                    parentId: o.parentId,
+                    position: o.position,
+                    relativePosition: o.relativePosition
+                }))
+            });
             // 场景C：层级过滤 - 如果父组和子对象都被选中，只移动父组
             // 场景A：仅选中组 - 只移动组对象
             // 场景B：仅选中子对象 - 更新子对象的relativePosition
@@ -5748,16 +5760,27 @@ const App = () => {
                                 ))}
                             </group>
 
-                            {/* 多选组移动控制器 */}
-                            {selectedIds.length > 1 && !isPreviewMode && (
-                                <MultiSelectTransformControls
-                                    selectedObjects={displayObjects.filter(o => selectedIds.includes(o.id))}
-                                    onDragStart={handleDragStart}
-                                    onDrag={handleDrag}
-                                    onDragEnd={handleDragEnd}
-                                    cameraView={cameraView}
-                                />
-                            )}
+                            {/* 多选组移动控制器 - 也用于单个组对象 */}
+                            {selectedIds.length > 0 && !isPreviewMode && (() => {
+                                // 检查是否选中了组对象或多个对象
+                                const hasGroupSelected = selectedIds.some(id => {
+                                    const obj = objects.find(o => o.id === id);
+                                    return obj && obj.type === 'group';
+                                });
+                                const shouldShowMultiSelect = selectedIds.length > 1 || hasGroupSelected;
+                                
+                                if (!shouldShowMultiSelect) return null;
+                                
+                                return (
+                                    <MultiSelectTransformControls
+                                        selectedObjects={displayObjects.filter(o => selectedIds.includes(o.id))}
+                                        onDragStart={handleDragStart}
+                                        onDrag={handleDrag}
+                                        onDragEnd={handleDragEnd}
+                                        cameraView={cameraView}
+                                    />
+                                );
+                            })()}
 
                             {viewMode === '3d' && (
                                 <OrbitControlsWithDragDetection
