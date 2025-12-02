@@ -2737,10 +2737,29 @@ const App = () => {
     // 复制选中对象
     const copySelected = useCallback(() => {
         if (selectedIds.length === 0) return;
+        
+        // 收集所有需要复制的对象（包括组对象的子对象）
+        const objectsToCopy = new Set();
         const selectedObjects = objects.filter(o => selectedIds.includes(o.id) && !o.isBaseMap);
-        if (selectedObjects.length > 0) {
-            setClipboard(selectedObjects);
-            console.log('Copied to clipboard:', selectedObjects);
+        
+        selectedObjects.forEach(obj => {
+            objectsToCopy.add(obj);
+            
+            // 如果是组对象，添加所有子对象
+            if (obj.type === 'group' && obj.children) {
+                obj.children.forEach(childId => {
+                    const childObj = objects.find(o => o.id === childId);
+                    if (childObj) {
+                        objectsToCopy.add(childObj);
+                    }
+                });
+            }
+        });
+        
+        const allObjectsToCopy = Array.from(objectsToCopy);
+        if (allObjectsToCopy.length > 0) {
+            setClipboard(allObjectsToCopy);
+            console.log('Copied to clipboard:', allObjectsToCopy);
         }
     }, [objects, selectedIds]);
 
@@ -2748,23 +2767,46 @@ const App = () => {
     const pasteClipboard = useCallback(() => {
         if (clipboard.length === 0) return;
 
-        const newObjects = clipboard.map(obj => {
+        const idMapping = {}; // 用于映射旧ID到新ID
+        const newObjects = [];
+        
+        // 第一遍：创建所有新对象并建立ID映射
+        clipboard.forEach(obj => {
             const newId = uuidv4();
-            return {
+            idMapping[obj.id] = newId;
+            
+            const newObj = {
                 ...obj,
                 id: newId,
                 name: `${obj.name} (Copy)`,
                 position: [...obj.position] // 原位粘贴，保持相同位置
             };
+            
+            newObjects.push(newObj);
+        });
+        
+        // 第二遍：更新所有的parentId和children引用
+        newObjects.forEach(obj => {
+            // 如果是组对象，更新children的ID映射
+            if (obj.type === 'group' && obj.children) {
+                obj.children = obj.children.map(childId => idMapping[childId] || childId);
+            }
+            
+            // 如果有父对象，更新parentId
+            if (obj.parentId && idMapping[obj.parentId]) {
+                obj.parentId = idMapping[obj.parentId];
+            }
         });
 
         const newAllObjects = [...objects, ...newObjects];
         commitHistory(newAllObjects);
 
-        // 选中新粘贴的对象
-        const newIds = newObjects.map(o => o.id);
-        setSelectedIds(newIds);
-        setSelectedId(newIds[newIds.length - 1]);
+        // 选中新粘贴的对象（只选中顶层对象，不包括子对象）
+        const topLevelIds = newObjects
+            .filter(obj => !obj.parentId || !idMapping[obj.parentId])
+            .map(o => o.id);
+        setSelectedIds(topLevelIds);
+        setSelectedId(topLevelIds[topLevelIds.length - 1]);
 
         console.log('Pasted objects:', newObjects);
     }, [clipboard, objects, commitHistory]);
