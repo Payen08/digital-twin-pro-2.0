@@ -39,7 +39,7 @@ export function useBatchOperations(objects, setObjects, commitHistory) {
           ...obj,
           id: newId,
           name: `${obj.name} 副本`,
-          position: [obj.position[0] + 2, obj.position[1], obj.position[2]]
+          position: [...obj.position] // 原位粘贴，保持相同位置
         };
         
         // 如果是组对象，更新children的ID映射
