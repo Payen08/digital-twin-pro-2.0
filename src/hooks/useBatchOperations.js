@@ -64,47 +64,100 @@ export function useBatchOperations(objects, setObjects, commitHistory) {
     return newObjects.map(o => o.id);
   }, [objects, setObjects, commitHistory]);
 
-  // 组合操作
+  // 组合操作 - 支持组与组、组与对象合并
   const handleGroup = useCallback((selectedIds) => {
     if (!selectedIds || selectedIds.length < 2) {
       alert('需要至少2个对象才能组合');
       return;
     }
     
-    // 计算中心点 - 只计算X和Z的平均值，Y保持为0（地面高度）
-    const avgX = selectedIds.reduce((sum, id) => {
+    // 收集所有要组合的对象ID（包括组的子对象）
+    const allObjectIds = [];
+    selectedIds.forEach(id => {
       const obj = objects.find(o => o.id === id);
-      return sum + (obj?.position[0] || 0);
-    }, 0) / selectedIds.length;
+      if (obj) {
+        if (obj.type === 'group' && obj.children) {
+          // 如果是组，添加其所有子对象
+          allObjectIds.push(...obj.children);
+        } else {
+          // 如果是普通对象，直接添加
+          allObjectIds.push(id);
+        }
+      }
+    });
     
-    // Y轴保持为0，避免在俯视图下出现高度问题
-    const avgY = 0;
+    // 去重
+    const uniqueObjectIds = [...new Set(allObjectIds)];
     
-    const avgZ = selectedIds.reduce((sum, id) => {
+    if (uniqueObjectIds.length < 2) {
+      alert('需要至少2个对象才能组合');
+      return;
+    }
+    
+    // 计算中心点 - 基于所有对象的绝对位置
+    let totalX = 0, totalZ = 0;
+    uniqueObjectIds.forEach(id => {
       const obj = objects.find(o => o.id === id);
-      return sum + (obj?.position[2] || 0);
-    }, 0) / selectedIds.length;
+      if (obj) {
+        // 如果对象有父组，使用绝对位置
+        if (obj.parentId && obj.relativePosition) {
+          const parent = objects.find(o => o.id === obj.parentId);
+          if (parent) {
+            totalX += parent.position[0] + obj.relativePosition[0];
+            totalZ += parent.position[2] + obj.relativePosition[2];
+          }
+        } else {
+          totalX += obj.position[0];
+          totalZ += obj.position[2];
+        }
+      }
+    });
+    
+    const avgX = totalX / uniqueObjectIds.length;
+    const avgY = 0; // Y轴保持为0
+    const avgZ = totalZ / uniqueObjectIds.length;
     
     const groupId = uuidv4();
     
-    // 标记子对象为组成员，并调整相对位置
+    // 更新对象：设置新的parentId和relativePosition
     const newObjects = objects.map(obj => {
-      if (selectedIds.includes(obj.id)) {
+      if (uniqueObjectIds.includes(obj.id)) {
+        // 计算对象的绝对位置
+        let absX, absY, absZ;
+        if (obj.parentId && obj.relativePosition) {
+          const parent = objects.find(o => o.id === obj.parentId);
+          if (parent) {
+            absX = parent.position[0] + obj.relativePosition[0];
+            absY = parent.position[1] + obj.relativePosition[1];
+            absZ = parent.position[2] + obj.relativePosition[2];
+          } else {
+            absX = obj.position[0];
+            absY = obj.position[1];
+            absZ = obj.position[2];
+          }
+        } else {
+          absX = obj.position[0];
+          absY = obj.position[1];
+          absZ = obj.position[2];
+        }
+        
         return {
           ...obj,
           parentId: groupId,
-          // 保存相对于组中心的偏移
           relativePosition: [
-            obj.position[0] - avgX,
-            obj.position[1] - avgY,
-            obj.position[2] - avgZ
+            absX - avgX,
+            absY - avgY,
+            absZ - avgZ
           ]
         };
       }
       return obj;
+    }).filter(obj => {
+      // 移除旧的组对象
+      return !(obj.type === 'group' && selectedIds.includes(obj.id));
     });
     
-    // 创建组对象
+    // 创建新组对象
     const groupNumber = objects.filter(o => o.type === 'group').length + 1;
     const groupObj = {
       id: groupId,
@@ -113,7 +166,7 @@ export function useBatchOperations(objects, setObjects, commitHistory) {
       position: [avgX, avgY, avgZ],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
-      children: selectedIds,
+      children: uniqueObjectIds,
       visible: true,
       locked: false,
       color: '#888888'
@@ -123,7 +176,7 @@ export function useBatchOperations(objects, setObjects, commitHistory) {
     setObjects(newObjects);
     if (commitHistory) commitHistory(newObjects);
     
-    console.log('📦 已组合', selectedIds.length, '个对象，组ID:', groupId);
+    console.log('📦 已组合', uniqueObjectIds.length, '个对象，组ID:', groupId);
     return groupObj.id;
   }, [objects, setObjects, commitHistory]);
 
