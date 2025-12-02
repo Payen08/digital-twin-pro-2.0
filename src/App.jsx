@@ -1375,6 +1375,14 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
                     e.stopPropagation();
                     onSelect(group.id, e.shiftKey, e.ctrlKey || e.metaKey);
                 }}
+                onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    // 双击组的包围盒时，选择第一个子对象（穿透选择）
+                    if (children && children.length > 0) {
+                        console.log('🎯 双击组包围盒，穿透选择第一个子对象:', children[0].name);
+                        onSelect(children[0].id, false, true); // 使用ctrlKey=true来穿透选择
+                    }
+                }}
             >
                 <boxGeometry args={bounds.size} />
                 <meshBasicMaterial visible={false} />
