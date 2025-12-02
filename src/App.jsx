@@ -1505,15 +1505,17 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
 };
 
 // --- UI 组件 ---
-const SidebarItem = ({ asset, onDragStart, onEdit }) => (
-    <div draggable onDragStart={(e) => {
-        e.dataTransfer.setData('type', asset.type);
-        if (asset.id) e.dataTransfer.setData('assetId', asset.id); // 传递 assetId
-        e.dataTransfer.effectAllowed = 'copy';
-    }}
-        className="flex items-center gap-3 p-2 mb-1 rounded-md cursor-grab hover:bg-[#222] active:cursor-grabbing transition-colors group"
-    >
-        <div className="text-gray-500 group-hover:text-gray-300 transition-colors bg-[#1a1a1a] p-1.5 rounded-md border border-[#2a2a2a]"><asset.icon size={14} /></div>
+const SidebarItem = ({ asset, onDragStart, onEdit }) => {
+    const IconComponent = asset.icon || Box; // 默认使用Box图标
+    return (
+        <div draggable onDragStart={(e) => {
+            e.dataTransfer.setData('type', asset.type);
+            if (asset.id) e.dataTransfer.setData('assetId', asset.id); // 传递 assetId
+            e.dataTransfer.effectAllowed = 'copy';
+        }}
+            className="flex items-center gap-3 p-2 mb-1 rounded-md cursor-grab hover:bg-[#222] active:cursor-grabbing transition-colors group"
+        >
+            <div className="text-gray-500 group-hover:text-gray-300 transition-colors bg-[#1a1a1a] p-1.5 rounded-md border border-[#2a2a2a]"><IconComponent size={14} /></div>
         <span className="text-[11px] text-gray-400 group-hover:text-white font-medium flex-1 truncate">{asset.label}</span>
         {/* 编辑按钮 (仅针对自定义资产) */}
         {onEdit && (
@@ -1522,8 +1524,9 @@ const SidebarItem = ({ asset, onDragStart, onEdit }) => (
             </button>
         )}
         {!onEdit && <GripVertical size={12} className="text-gray-600 opacity-0 group-hover:opacity-100" />}
-    </div>
-);
+        </div>
+    );
+};
 
 // 更新后的资产编辑弹窗：支持 3D 预览
 const AssetEditModal = ({ asset, onClose, onSave }) => {
