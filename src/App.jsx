@@ -1506,7 +1506,8 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
 
 // --- UI 组件 ---
 const SidebarItem = ({ asset, onDragStart, onEdit }) => {
-    const IconComponent = asset.icon || Box; // 默认使用Box图标
+    // 确保icon是一个有效的React组件（函数）
+    const IconComponent = (typeof asset.icon === 'function') ? asset.icon : Box;
     return (
         <div draggable onDragStart={(e) => {
             e.dataTransfer.setData('type', asset.type);
