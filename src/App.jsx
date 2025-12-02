@@ -1327,6 +1327,70 @@ const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMod
     );
 };
 
+// 组对象的包围盒（用于点击选择）
+const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
+    const groupRef = useRef();
+    const [bounds, setBounds] = useState(null);
+
+    // 计算组的包围盒
+    useEffect(() => {
+        if (!children || children.length === 0) return;
+
+        let minX = Infinity, minY = Infinity, minZ = Infinity;
+        let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+        children.forEach(child => {
+            const pos = child.position;
+            const scale = child.scale || [1, 1, 1];
+            
+            minX = Math.min(minX, pos[0] - scale[0] / 2);
+            minY = Math.min(minY, pos[1] - scale[1] / 2);
+            minZ = Math.min(minZ, pos[2] - scale[2] / 2);
+            
+            maxX = Math.max(maxX, pos[0] + scale[0] / 2);
+            maxY = Math.max(maxY, pos[1] + scale[1] / 2);
+            maxZ = Math.max(maxZ, pos[2] + scale[2] / 2);
+        });
+
+        const width = maxX - minX;
+        const height = maxY - minY;
+        const depth = maxZ - minZ;
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        const centerZ = (minZ + maxZ) / 2;
+
+        setBounds({
+            size: [width, height, depth],
+            center: [centerX, centerY, centerZ]
+        });
+    }, [children]);
+
+    if (!bounds) return null;
+
+    return (
+        <group ref={groupRef} position={bounds.center}>
+            {/* 不可见但可点击的包围盒 */}
+            <mesh
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(group.id, e.shiftKey, e.ctrlKey || e.metaKey);
+                }}
+            >
+                <boxGeometry args={bounds.size} />
+                <meshBasicMaterial visible={false} />
+            </mesh>
+            
+            {/* 选中时显示边框 */}
+            {isSelected && (
+                <lineSegments>
+                    <edgesGeometry args={[new THREE.BoxGeometry(...bounds.size)]} />
+                    <lineBasicMaterial color="#60a5fa" linewidth={2} />
+                </lineSegments>
+            )}
+        </group>
+    );
+};
+
 // 多选组移动控制器 - 使用 drei TransformControls
 const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, onDragEnd, cameraView }) => {
     const { scene } = useThree();
@@ -5758,6 +5822,20 @@ const App = () => {
                                         cameraView={cameraView}
                                     />
                                 ))}
+                                
+                                {/* 渲染组对象的包围盒 */}
+                                {displayObjects.filter(obj => obj.type === 'group').map(group => {
+                                    const groupChildren = displayObjects.filter(child => child.parentId === group.id);
+                                    return (
+                                        <GroupBoundingBox
+                                            key={group.id}
+                                            group={group}
+                                            children={groupChildren}
+                                            isSelected={selectedIds.includes(group.id) && !isPreviewMode}
+                                            onSelect={handleSelect}
+                                        />
+                                    );
+                                })}
                             </group>
 
                             {/* 多选组移动控制器 - 也用于单个组对象 */}
