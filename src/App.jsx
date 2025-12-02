@@ -2754,7 +2754,7 @@ const App = () => {
                 ...obj,
                 id: newId,
                 name: `${obj.name} (Copy)`,
-                position: [obj.position[0] + 1, obj.position[1], obj.position[2] + 1] // 偏移一点位置
+                position: [...obj.position] // 原位粘贴，保持相同位置
             };
         });
 
