@@ -1925,6 +1925,8 @@ const App = () => {
     }, [objects]);
     const [selectedId, setSelectedId] = useState(null);
     const [selectedIds, setSelectedIds] = useState([]); // 多选支持
+    const [editingNameId, setEditingNameId] = useState(null); // 正在编辑名称的对象ID
+    const [editingName, setEditingName] = useState(''); // 编辑中的名称
     const dragOffsetRef = useRef(null); // 使用 ref 存储拖动偏移，避免频繁渲染
     const historyRef = useRef({ history: [initialObjects], index: 0 }); // 存储最新的history状态
     const [dragOffset, setDragOffset] = useState(null); // 多选拖动偏移 [x, y, z]
@@ -2810,6 +2812,27 @@ const App = () => {
 
         console.log('Pasted objects:', newObjects);
     }, [clipboard, objects, commitHistory]);
+
+    // 开始编辑对象名称
+    const startEditingName = useCallback((id, currentName) => {
+        setEditingNameId(id);
+        setEditingName(currentName);
+    }, []);
+
+    // 保存编辑的名称
+    const saveEditingName = useCallback(() => {
+        if (editingNameId && editingName.trim()) {
+            updateObject(editingNameId, 'name', editingName.trim());
+        }
+        setEditingNameId(null);
+        setEditingName('');
+    }, [editingNameId, editingName, updateObject]);
+
+    // 取消编辑名称
+    const cancelEditingName = useCallback(() => {
+        setEditingNameId(null);
+        setEditingName('');
+    }, []);
 
     // 处理对象选择
     const handleSelect = useCallback((id, multiSelect = false) => {
@@ -5120,7 +5143,32 @@ const App = () => {
                                                     }
                                                 }
                                             }
-                                        }} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors ${selectedIds.includes(obj.id) ? 'bg-blue-900/30 text-blue-100 border-l-2 border-blue-500' : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300 border-l-2 border-transparent'} ${obj.locked ? 'opacity-50' : ''}`}><div className="min-w-[16px] flex justify-center">{obj.isBaseMap ? <Map size={12} className="text-blue-400" /> : (isGroup ? <Layers size={12} className="text-purple-400" /> : obj.type.includes('wall') ? <BrickWall size={12} /> : obj.type === 'floor' ? <LandPlot size={12} /> : <BoxIcon size={12} />)}</div><span className="truncate flex-1">{obj.name}</span>{isGroup && <span className="text-[9px] text-gray-600">({children.length})</span>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'locked', !obj.locked); }} className="hover:text-white p-1 rounded hover:bg-[#333]" title={obj.locked ? "解锁" : "锁定"}>{obj.locked ? <Lock size={10} /> : <Unlock size={10} />}</button>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'visible', !obj.visible); }} className="hover:text-white p-1 rounded hover:bg-[#333]">{obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}</button>}</div>
+                                        }} onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!obj.locked) {
+                                                startEditingName(obj.id, obj.name);
+                                            }
+                                        }} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors ${selectedIds.includes(obj.id) ? 'bg-blue-900/30 text-blue-100 border-l-2 border-blue-500' : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300 border-l-2 border-transparent'} ${obj.locked ? 'opacity-50' : ''}`}><div className="min-w-[16px] flex justify-center">{obj.isBaseMap ? <Map size={12} className="text-blue-400" /> : (isGroup ? <Layers size={12} className="text-purple-400" /> : obj.type.includes('wall') ? <BrickWall size={12} /> : obj.type === 'floor' ? <LandPlot size={12} /> : <BoxIcon size={12} />)}</div>{editingNameId === obj.id ? (
+                                            <input
+                                                type="text"
+                                                value={editingName}
+                                                onChange={(e) => setEditingName(e.target.value)}
+                                                onBlur={saveEditingName}
+                                                onKeyDown={(e) => {
+                                                    e.stopPropagation();
+                                                    if (e.key === 'Enter') {
+                                                        saveEditingName();
+                                                    } else if (e.key === 'Escape') {
+                                                        cancelEditingName();
+                                                    }
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                autoFocus
+                                                className="flex-1 bg-[#1a1a1a] border border-blue-500 rounded px-1 py-0.5 text-white outline-none"
+                                            />
+                                        ) : (
+                                            <span className="truncate flex-1">{obj.name}</span>
+                                        )}{isGroup && <span className="text-[9px] text-gray-600">({children.length})</span>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'locked', !obj.locked); }} className="hover:text-white p-1 rounded hover:bg-[#333]" title={obj.locked ? "解锁" : "锁定"}>{obj.locked ? <Lock size={10} /> : <Unlock size={10} />}</button>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'visible', !obj.visible); }} className="hover:text-white p-1 rounded hover:bg-[#333]">{obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}</button>}</div>
                                         {isGroup && children.length > 0 && (
                                             <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-700 pl-2">
                                                 {children.map(child => (
@@ -5137,9 +5185,34 @@ const App = () => {
                                                                 setSelectedIds([child.id]);
                                                             }
                                                         }
+                                                    }} onDoubleClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (!child.locked) {
+                                                            startEditingName(child.id, child.name);
+                                                        }
                                                     }} className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-[10px] transition-colors ${selectedIds.includes(child.id) ? 'bg-blue-900/20 text-blue-200' : 'text-gray-600 hover:bg-[#1a1a1a] hover:text-gray-400'} ${child.locked ? 'opacity-50' : ''}`}>
                                                         <div className="min-w-[14px] flex justify-center">{child.type.includes('wall') ? <BrickWall size={10} /> : child.type === 'floor' ? <LandPlot size={10} /> : <BoxIcon size={10} />}</div>
-                                                        <span className="truncate flex-1">{child.name}</span>
+                                                        {editingNameId === child.id ? (
+                                                            <input
+                                                                type="text"
+                                                                value={editingName}
+                                                                onChange={(e) => setEditingName(e.target.value)}
+                                                                onBlur={saveEditingName}
+                                                                onKeyDown={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (e.key === 'Enter') {
+                                                                        saveEditingName();
+                                                                    } else if (e.key === 'Escape') {
+                                                                        cancelEditingName();
+                                                                    }
+                                                                }}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                autoFocus
+                                                                className="flex-1 bg-[#1a1a1a] border border-blue-500 rounded px-1 py-0.5 text-white outline-none text-[10px]"
+                                                            />
+                                                        ) : (
+                                                            <span className="truncate flex-1">{child.name}</span>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
