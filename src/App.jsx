@@ -1926,6 +1926,7 @@ const App = () => {
     const [selectedId, setSelectedId] = useState(null);
     const [selectedIds, setSelectedIds] = useState([]); // 多选支持
     const dragOffsetRef = useRef(null); // 使用 ref 存储拖动偏移，避免频繁渲染
+    const historyRef = useRef({ history: [initialObjects], index: 0 }); // 存储最新的history状态
     const [dragOffset, setDragOffset] = useState(null); // 多选拖动偏移 [x, y, z]
     const [isDragging, setIsDragging] = useState(false); // 是否正在拖动多选对象
     const [isBoxSelecting, setIsBoxSelecting] = useState(false);
@@ -1938,6 +1939,12 @@ const App = () => {
     const [isEditingPoints, setIsEditingPoints] = useState(false);
     const [history, setHistory] = useState([initialObjects]);
     const [historyIndex, setHistoryIndex] = useState(0);
+    
+    // 同步history到ref
+    useEffect(() => {
+        historyRef.current = { history, index: historyIndex };
+    }, [history, historyIndex]);
+    
     const [sidebarTab, setSidebarTab] = useState('assets');
     const [searchQuery, setSearchQuery] = useState('');
     const [isPreviewMode, setIsPreviewMode] = useState(false); // 预览模式状态（已禁用）
@@ -3739,7 +3746,9 @@ const App = () => {
 
     const handleDragEnd = () => {
         const finalOffset = dragOffsetRef.current || dragOffset;
+        
         if (finalOffset && selectedIds.length > 0) {
+            // 先更新对象位置
             const updatedObjects = objects.map(obj => {
                 if (!selectedIds.includes(obj.id)) return obj;
 
@@ -3758,9 +3767,24 @@ const App = () => {
                     ]
                 };
             });
-            commitHistory(updatedObjects);
+            
+            // 立即更新objects，然后清除拖动状态
+            setObjects(updatedObjects);
+            
+            // 在下一帧添加到历史记录，避免阻塞
+            requestAnimationFrame(() => {
+                const { history: currentHistory, index: currentIndex } = historyRef.current;
+                const newHistory = currentHistory.slice(0, currentIndex + 1);
+                newHistory.push(updatedObjects);
+                if (newHistory.length > 50) newHistory.shift();
+                setHistory(newHistory);
+                setHistoryIndex(newHistory.length - 1);
+            });
         }
+        
+        // 最后清除拖动状态
         dragOffsetRef.current = null;
+        dragOffsetRef.lastUpdateTime = null;
         setDragOffset(null);
         setIsDragging(false);
     };
