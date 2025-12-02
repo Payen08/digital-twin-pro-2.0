@@ -648,7 +648,7 @@ const DragDropManager = ({ onDrop }) => {
 };
 
 // 2D 交互对象组件
-const Interactive2DObject = ({ obj, isSelected, transformMode, toolMode, onSelect, onTransformEnd }) => {
+const Interactive2DObject = ({ obj, isSelected, transformMode, toolMode, onSelect, onTransformEnd, cameraView }) => {
     const groupRef = useRef();
 
     // 如果对象是基础地图或被锁定，不允许选择和变换
@@ -676,11 +676,23 @@ const Interactive2DObject = ({ obj, isSelected, transformMode, toolMode, onSelec
             </group>
 
             {/* 2D模式下的变换控制器 - 选中时默认显示移动箭头 */}
-            {isSelected && toolMode === 'select' && (
-                <TransformControls
-                    object={groupRef}
-                    mode={transformMode || 'translate'}
-                    size={0.8}
+            {isSelected && toolMode === 'select' && (() => {
+                // 根据视图模式决定显示哪些轴
+                const axisConfig = {
+                    top: { showX: true, showY: false, showZ: true },      // 俯视图：XZ平面
+                    front: { showX: true, showY: true, showZ: false },    // 正视图：XY平面
+                    perspective: { showX: true, showY: true, showZ: true } // 透视图：全部显示
+                };
+                const { showX, showY, showZ } = axisConfig[cameraView] || axisConfig.perspective;
+                
+                return (
+                    <TransformControls
+                        object={groupRef}
+                        mode={transformMode || 'translate'}
+                        size={0.8}
+                        showX={showX}
+                        showY={showY}
+                        showZ={showZ}
                     onMouseUp={() => {
                         if (groupRef.current) {
                             const { position, rotation, scale } = groupRef.current;
@@ -692,7 +704,8 @@ const Interactive2DObject = ({ obj, isSelected, transformMode, toolMode, onSelec
                         }
                     }}
                 />
-            )}
+                );
+            })()}
         </group>
     );
 };
@@ -1279,13 +1292,43 @@ const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMod
                     </Html>
                 )}
             </group>
-            {isSelected && !isEditingPoints && transformMode && (<TransformControls object={groupRef} mode={transformMode} size={0.8} space="local" onMouseUp={() => { if (groupRef.current) { const { position, rotation, scale } = groupRef.current; onTransformEnd(data.id, { position: [position.x, position.y, position.z], rotation: [rotation.x, rotation.y, rotation.z], scale: [scale.x, scale.y, scale.z] }); } }} />)}
+            {isSelected && !isEditingPoints && transformMode && (() => {
+                // 根据视图模式决定显示哪些轴
+                const axisConfig = {
+                    top: { showX: true, showY: false, showZ: true },      // 俯视图：XZ平面
+                    front: { showX: true, showY: true, showZ: false },    // 正视图：XY平面
+                    perspective: { showX: true, showY: true, showZ: true } // 透视图：全部显示
+                };
+                const { showX, showY, showZ } = axisConfig[cameraView] || axisConfig.perspective;
+                
+                return (
+                    <TransformControls 
+                        object={groupRef} 
+                        mode={transformMode} 
+                        size={0.8} 
+                        space="local"
+                        showX={showX}
+                        showY={showY}
+                        showZ={showZ}
+                        onMouseUp={() => { 
+                            if (groupRef.current) { 
+                                const { position, rotation, scale } = groupRef.current; 
+                                onTransformEnd(data.id, { 
+                                    position: [position.x, position.y, position.z], 
+                                    rotation: [rotation.x, rotation.y, rotation.z], 
+                                    scale: [scale.x, scale.y, scale.z] 
+                                }); 
+                            } 
+                        }} 
+                    />
+                );
+            })()}
         </>
     );
 };
 
 // 多选组移动控制器 - 使用 drei TransformControls
-const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, onDragEnd }) => {
+const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, onDragEnd, cameraView }) => {
     const { scene } = useThree();
     const groupRef = useRef();
     const controlsRef = useRef();
@@ -1335,14 +1378,22 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
 
     if (selectedObjects.length === 0) return null;
 
+    // 根据视图模式决定显示哪些轴
+    const axisConfig = {
+        top: { showX: true, showY: false, showZ: true },      // 俯视图：XZ平面
+        front: { showX: true, showY: true, showZ: false },    // 正视图：XY平面
+        perspective: { showX: true, showY: true, showZ: true } // 透视图：全部显示
+    };
+    const { showX, showY, showZ } = axisConfig[cameraView] || axisConfig.perspective;
+
     return (
         <TransformControls
             ref={controlsRef}
             position={center}
             mode="translate"
-            showX={true}
-            showY={false}  // 禁用Y轴，只在XZ平面移动
-            showZ={true}
+            showX={showX}
+            showY={showY}
+            showZ={showZ}
             size={1.5}
             onMouseDown={() => {
                 console.log('🎯 Transform: Drag Start');
@@ -5358,6 +5409,7 @@ const App = () => {
                                         toolMode={toolMode}
                                         onSelect={handleSelect}
                                         onTransformEnd={handleTransformEnd}
+                                        cameraView={cameraView}
                                     />
                                 ))}
                             </group>
@@ -5369,6 +5421,7 @@ const App = () => {
                                     onDragStart={handleDragStart}
                                     onDrag={handleDrag}
                                     onDragEnd={handleDragEnd}
+                                    cameraView={cameraView}
                                 />
                             )}
 
@@ -5514,6 +5567,7 @@ const App = () => {
                                     onDragStart={handleDragStart}
                                     onDrag={handleDrag}
                                     onDragEnd={handleDragEnd}
+                                    cameraView={cameraView}
                                 />
                             )}
 
