@@ -2822,11 +2822,14 @@ const App = () => {
     // 保存编辑的名称
     const saveEditingName = useCallback(() => {
         if (editingNameId && editingName.trim()) {
-            updateObject(editingNameId, 'name', editingName.trim());
+            const updatedObjects = objects.map(obj =>
+                obj.id === editingNameId ? { ...obj, name: editingName.trim() } : obj
+            );
+            commitHistory(updatedObjects);
         }
         setEditingNameId(null);
         setEditingName('');
-    }, [editingNameId, editingName, updateObject]);
+    }, [editingNameId, editingName, objects, commitHistory]);
 
     // 取消编辑名称
     const cancelEditingName = useCallback(() => {
