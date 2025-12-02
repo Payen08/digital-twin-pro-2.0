@@ -2045,14 +2045,19 @@ const App = () => {
         // 从localStorage加载自定义资产，但过滤掉包含blob URL的旧资产
         const saved = loadFromLocalStorage();
         if (saved?.customAssets) {
-            return saved.customAssets.filter(asset => {
-                // 只保留Base64格式的资产（以data:开头）
-                if (asset.modelUrl && asset.modelUrl.startsWith('blob:')) {
-                    console.warn('⚠️ 跳过失效的blob URL资产:', asset.label);
-                    return false;
-                }
-                return true;
-            });
+            return saved.customAssets
+                .filter(asset => {
+                    // 只保留Base64格式的资产（以data:开头）
+                    if (asset.modelUrl && asset.modelUrl.startsWith('blob:')) {
+                        console.warn('⚠️ 跳过失效的blob URL资产:', asset.label);
+                        return false;
+                    }
+                    return true;
+                })
+                .map(asset => ({
+                    ...asset,
+                    icon: asset.icon || Box // 确保每个资产都有icon
+                }));
         }
         return [];
     });
