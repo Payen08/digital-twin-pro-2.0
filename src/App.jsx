@@ -1335,6 +1335,7 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
     const [center, setCenter] = useState([0, 0, 0]);
     const initialPositionsRef = useRef([]);
     const offsetsRef = useRef([]);
+    const lastDragTimeRef = useRef(0); // 用于节流
 
     // 计算中心点
     useEffect(() => {
@@ -1396,11 +1397,15 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
             showZ={showZ}
             size={1.5}
             onMouseDown={() => {
-                console.log('🎯 Transform: Drag Start');
                 if (onDragStart) onDragStart();
             }}
             onChange={(e) => {
                 if (!controlsRef.current) return;
+
+                // 节流：限制更新频率为每16ms一次（约60fps）
+                const now = performance.now();
+                if (now - lastDragTimeRef.current < 16) return;
+                lastDragTimeRef.current = now;
 
                 // 获取控制器的当前位置
                 const newPos = controlsRef.current.worldPosition;
@@ -1415,8 +1420,6 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
                 if (onDrag) onDrag(offset);
             }}
             onMouseUp={() => {
-                console.log('🏁 Transform: Drag End');
-
                 // 更新中心点为新位置
                 if (controlsRef.current) {
                     const newPos = controlsRef.current.worldPosition;
@@ -3717,19 +3720,25 @@ const App = () => {
 
     const handleDrag = (offset) => {
         dragOffsetRef.current = offset;
-        // 使用 requestAnimationFrame 节流更新
-        if (!dragOffsetRef.updateScheduled) {
+        // 使用 requestAnimationFrame 节流更新，并添加时间间隔控制
+        const now = performance.now();
+        if (!dragOffsetRef.lastUpdateTime) {
+            dragOffsetRef.lastUpdateTime = now;
+        }
+        
+        // 限制更新频率为每16ms一次（约60fps）
+        if (!dragOffsetRef.updateScheduled && (now - dragOffsetRef.lastUpdateTime) >= 16) {
             dragOffsetRef.updateScheduled = true;
             requestAnimationFrame(() => {
                 setDragOffset(dragOffsetRef.current);
                 dragOffsetRef.updateScheduled = false;
+                dragOffsetRef.lastUpdateTime = performance.now();
             });
         }
     };
 
     const handleDragEnd = () => {
         const finalOffset = dragOffsetRef.current || dragOffset;
-        console.log('handleDragEnd', { finalOffset, selectedIds, isDragging });
         if (finalOffset && selectedIds.length > 0) {
             const updatedObjects = objects.map(obj => {
                 if (!selectedIds.includes(obj.id)) return obj;
@@ -3749,7 +3758,6 @@ const App = () => {
                     ]
                 };
             });
-            console.log('Committing updated objects', updatedObjects);
             commitHistory(updatedObjects);
         }
         dragOffsetRef.current = null;
@@ -3777,8 +3785,8 @@ const App = () => {
             return true;
         });
 
-        // 调试信息：显示楼层过滤结果
-        if (currentFloorLevel) {
+        // 调试信息：显示楼层过滤结果（仅在非拖动时打印，避免性能问题）
+        if (currentFloorLevel && !isDragging) {
             const totalObjects = objects.filter(o => o.floorLevel).length;
             const hiddenObjects = objects.filter(o => o.floorLevel && o.floorLevel !== currentFloorLevel.name).length;
             console.log(`🏢 当前楼层: ${currentFloorLevel.name}, 显示: ${filteredObjects.length}个对象, 隐藏: ${hiddenObjects}个对象 (总共: ${totalObjects}个)`);
