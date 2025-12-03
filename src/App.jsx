@@ -2940,6 +2940,81 @@ const App = () => {
         // 如果场景有保存的对象数据，直接恢复（包括默认场景）
         if (floor.objects && floor.objects.length > 0) {
             console.log('✅ 从场景数据恢复对象:', floor.objects.length);
+            
+            // 🔧 自动迁移：将未分组的点位和路径打包成组
+            const waypoints = floor.objects.filter(o => o.type === 'waypoint' && !o.parentId);
+            const paths = floor.objects.filter(o => o.type === 'path_line' && !o.parentId);
+            const networkObjects = [...waypoints, ...paths];
+            
+            if (networkObjects.length > 0) {
+                console.log('🔧 检测到未分组的路网元素:', {
+                    waypoints: waypoints.length,
+                    paths: paths.length,
+                    total: networkObjects.length
+                });
+                
+                // 检查是否已经有"场景路网"组
+                const existingGroup = floor.objects.find(o => o.type === 'group' && o.name === '场景路网');
+                
+                if (!existingGroup) {
+                    console.log('📦 自动创建"场景路网"组...');
+                    
+                    // 计算中心位置
+                    let sumX = 0, sumZ = 0;
+                    networkObjects.forEach(obj => {
+                        sumX += obj.position[0];
+                        sumZ += obj.position[2];
+                    });
+                    const centerX = sumX / networkObjects.length;
+                    const centerZ = sumZ / networkObjects.length;
+                    
+                    // 创建组对象
+                    const groupId = uuidv4();
+                    const sceneGroup = {
+                        id: groupId,
+                        type: 'group',
+                        name: '场景路网',
+                        position: [centerX, 0, centerZ],
+                        rotation: [0, 0, 0],
+                        scale: [1, 1, 1],
+                        children: networkObjects.map(o => o.id),
+                        color: '#888888',
+                        opacity: 1,
+                        visible: true,
+                        locked: false
+                    };
+                    
+                    // 更新所有路网对象，设置parentId和relativePosition
+                    const migratedObjects = floor.objects.map(obj => {
+                        if (networkObjects.find(n => n.id === obj.id)) {
+                            return {
+                                ...obj,
+                                parentId: groupId,
+                                relativePosition: [
+                                    obj.position[0] - centerX,
+                                    obj.position[1] - 0,
+                                    obj.position[2] - centerZ
+                                ]
+                            };
+                        }
+                        return obj;
+                    });
+                    
+                    // 添加组对象
+                    migratedObjects.push(sceneGroup);
+                    
+                    console.log('✅ 自动迁移完成！已创建"场景路网"组，包含', networkObjects.length, '个对象');
+                    
+                    // 更新场景数据
+                    floor.objects = migratedObjects;
+                    
+                    // 保存到localStorage
+                    const updatedFloors = floors.map(f => f.id === floor.id ? floor : f);
+                    setFloors(updatedFloors);
+                    localStorage.setItem('digitalTwinFloors', JSON.stringify(updatedFloors));
+                }
+            }
+            
             console.log('📋 对象列表:', floor.objects.map(o => ({
                 type: o.type,
                 name: o.name,
