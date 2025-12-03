@@ -1893,49 +1893,48 @@ const PropSection = ({ title, children }) => {
 };
 const PropRow = ({ label, children, vertical = false }) => (<div className={`flex ${vertical ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}><label className={`text-[11px] text-gray-500 shrink-0 ${vertical ? 'w-full text-left pl-1' : 'w-16'}`}>{label}</label><div className="flex-1 flex gap-2 w-full">{children}</div></div>);
 const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, className, min }) => {
-    // 直接使用原生number input，简单可靠
-    const handleChange = (e) => {
-        const val = e.target.value;
-        if (val === '' || val === '-') {
-            // 允许空值和单独的负号（用户正在输入）
-            return;
+    const inputRef = useRef(null);
+    
+    // 当外部value变化时，更新输入框（仅在非聚焦时）
+    useEffect(() => {
+        if (inputRef.current && document.activeElement !== inputRef.current) {
+            inputRef.current.value = value;
         }
-        const num = parseFloat(val);
-        if (!isNaN(num)) {
-            onChange(num);
-        }
-    };
+    }, [value]);
 
     const handleBlur = (e) => {
-        const val = e.target.value;
-        if (val === '' || val === '-') {
-            // 空值时恢复默认
-            const defaultVal = min !== undefined ? min : 0;
-            onChange(defaultVal);
-        } else {
-            let num = parseFloat(val);
-            if (isNaN(num)) {
-                num = min !== undefined ? min : 0;
-            } else if (min !== undefined && num < min) {
-                num = min;
-            }
-            onChange(num);
+        const val = e.target.value.trim();
+        let num = parseFloat(val);
+        
+        if (val === '' || isNaN(num)) {
+            // 无效输入，恢复默认值
+            num = min !== undefined ? min : 0;
+        } else if (min !== undefined && num < min) {
+            // 应用最小值限制
+            num = min;
         }
+        
+        // 更新输入框显示和外部状态
+        e.target.value = num;
+        onChange(num);
     };
 
     return (
         <div className={`flex-1 relative flex items-center ${className || ''}`}>
             {label && <span className="pl-2 text-[9px] text-gray-500 font-bold select-none">{label}</span>}
             <input
+                ref={inputRef}
                 type="number"
-                value={value}
+                defaultValue={value}
                 step={step}
-                min={min}
-                onChange={handleChange}
                 onBlur={handleBlur}
-                onKeyDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') {
+                        e.target.blur();
+                    }
+                }}
                 onKeyUp={(e) => e.stopPropagation()}
-                onKeyPress={(e) => e.stopPropagation()}
                 disabled={disabled}
                 className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
