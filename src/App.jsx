@@ -4213,17 +4213,36 @@ const App = () => {
         commitHistory(newObjects);
     };
 
-    const updateTransform = (id, type, axisIdx, value, minValue = 0.01) => {
-        // 处理输入值：允许空字符串，但在提交时使用最小值
+    const updateTransform = (id, type, axisIdx, value) => {
+        // 处理输入值
         let finalValue = value;
+        
+        // 如果是空值，根据类型设置默认值
         if (value === '' || value === null || value === undefined) {
-            finalValue = minValue;
+            if (type === 'scale') {
+                finalValue = 0.01; // 缩放最小值
+            } else if (type === 'rotation') {
+                finalValue = 0; // 旋转默认为0
+            } else {
+                finalValue = 0; // 位置默认为0
+            }
         } else {
             const num = parseFloat(value);
             if (isNaN(num)) {
-                finalValue = minValue;
+                // 无效值，使用默认值
+                if (type === 'scale') {
+                    finalValue = 0.01;
+                } else {
+                    finalValue = 0;
+                }
             } else {
-                finalValue = Math.max(num, minValue);
+                // 只对scale应用最小值限制
+                if (type === 'scale') {
+                    finalValue = Math.max(num, 0.01);
+                } else {
+                    // rotation和position允许任意值（包括0和负数）
+                    finalValue = num;
+                }
             }
         }
         
