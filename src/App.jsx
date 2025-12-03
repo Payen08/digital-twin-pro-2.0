@@ -6914,15 +6914,6 @@ const App = () => {
                                                 </div>
                                             </div>
                                         )}
-                                        <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a] text-center mt-2">
-                                            <div className="text-[10px] text-gray-500 mb-2 text-left flex items-center gap-1"><RefreshCw size={10} /> 切换资产 </div>
-                                            {customAssets.length > 0 ? (
-                                                <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto custom-scrollbar">
-                                                    {customAssets.map((asset, idx) => (<button key={idx} onClick={() => updateObject(selectedId, 'modelUrl', asset.modelUrl)} className={`flex flex-col items-center justify-center p-2 rounded border ${selectedObject.modelUrl === asset.modelUrl ? 'border-blue-500 bg-blue-500/10 text-white' : 'border-[#333] text-gray-500 hover:border-gray-500 hover:text-gray-300'} transition-all`} title={asset.label}><Box size={16} className="mb-1 text-blue-400" /><span className="text-[9px] w-full truncate">{asset.label}</span></button>))}
-                                                </div>
-                                            ) : (<div className="text-[10px] text-gray-600 py-4 border border-dashed border-[#333] rounded">暂无自定义资产<br />请在左侧资源库上传</div>)}
-                                            {selectedObject.modelUrl && (<button onClick={() => updateObject(selectedId, 'modelUrl', null)} className="w-full mt-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-500/30 rounded text-[10px] flex items-center justify-center gap-2 transition-colors"><RefreshCw size={12} /> 重置为默认几何体</button>)}
-                                        </div>
                                     </div>
                                     </div>
                                 )}
