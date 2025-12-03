@@ -91,13 +91,29 @@ export function useBatchOperations(objects, setObjects, commitHistory) {
     // 组对象也可以作为子对象
     const newObjects = objects.map(obj => {
       if (selectedIds.includes(obj.id)) {
+        // 计算对象的实际世界坐标
+        let worldX = obj.position[0];
+        let worldY = obj.position[1];
+        let worldZ = obj.position[2];
+        
+        // 如果对象已经有parentId，说明它是某个组的子对象
+        // 需要计算其世界坐标：父组position + relativePosition
+        if (obj.parentId && obj.relativePosition) {
+          const parent = objects.find(o => o.id === obj.parentId);
+          if (parent) {
+            worldX = parent.position[0] + obj.relativePosition[0];
+            worldY = parent.position[1] + obj.relativePosition[1];
+            worldZ = parent.position[2] + obj.relativePosition[2];
+          }
+        }
+        
         return {
           ...obj,
           parentId: groupId,
           relativePosition: [
-            obj.position[0] - avgX,
-            obj.position[1] - avgY,
-            obj.position[2] - avgZ
+            worldX - avgX,
+            worldY - avgY,
+            worldZ - avgZ
           ]
         };
       }

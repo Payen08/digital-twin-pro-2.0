@@ -34,6 +34,160 @@ const Gltf = ({ src, ...props }) => {
     return <primitive object={scene.clone()} {...props} />;
 };
 
+// 递归渲染层级列表项组件
+const LayerItem = ({ 
+    obj, 
+    allObjects, 
+    selectedIds, 
+    editingNameId, 
+    editingName,
+    setEditingName,
+    setToolMode, 
+    setSelectedId, 
+    setSelectedIds,
+    startEditingName,
+    saveEditingName,
+    cancelEditingName,
+    updateObject
+}) => {
+    const isGroup = obj.type === 'group';
+    const children = isGroup ? allObjects.filter(child => child.parentId === obj.id) : [];
+    const actualObjects = children.filter(c => c.type !== 'group');
+    
+    return (
+        <div>
+            <div 
+                onClick={(e) => {
+                    if (!obj.locked) {
+                        setToolMode('select');
+                        if (e.shiftKey) {
+                            if (isGroup) {
+                                const groupAndChildren = [obj.id, ...children.map(c => c.id)];
+                                const allSelected = groupAndChildren.every(id => selectedIds.includes(id));
+                                const newIds = allSelected 
+                                    ? selectedIds.filter(id => !groupAndChildren.includes(id))
+                                    : [...new Set([...selectedIds, ...groupAndChildren])];
+                                setSelectedIds(newIds);
+                                setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
+                            } else {
+                                const newIds = selectedIds.includes(obj.id) 
+                                    ? selectedIds.filter(id => id !== obj.id) 
+                                    : [...selectedIds, obj.id];
+                                setSelectedIds(newIds);
+                                setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
+                            }
+                        } else {
+                            if (isGroup) {
+                                const groupAndChildren = [obj.id, ...children.map(c => c.id)];
+                                setSelectedIds(groupAndChildren);
+                                setSelectedId(obj.id);
+                            } else {
+                                setSelectedId(obj.id);
+                                setSelectedIds([obj.id]);
+                            }
+                        }
+                    }
+                }}
+                onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (!obj.locked) {
+                        startEditingName(obj.id, obj.name);
+                    }
+                }}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors ${
+                    selectedIds.includes(obj.id) 
+                        ? 'bg-blue-900/30 text-blue-100 border-l-2 border-blue-500' 
+                        : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300 border-l-2 border-transparent'
+                } ${obj.locked ? 'opacity-50' : ''}`}
+            >
+                <div className="min-w-[16px] flex justify-center">
+                    {obj.isBaseMap ? (
+                        <Map size={12} className="text-blue-400" />
+                    ) : isGroup ? (
+                        <Layers size={12} className="text-purple-400" />
+                    ) : obj.type.includes('wall') ? (
+                        <BrickWall size={12} />
+                    ) : obj.type === 'floor' ? (
+                        <LandPlot size={12} />
+                    ) : (
+                        <BoxIcon size={12} />
+                    )}
+                </div>
+                {editingNameId === obj.id ? (
+                    <input
+                        type="text"
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onBlur={saveEditingName}
+                        onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter') {
+                                saveEditingName();
+                            } else if (e.key === 'Escape') {
+                                cancelEditingName();
+                            }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                        className="flex-1 bg-[#1a1a1a] border border-blue-500 rounded px-1 py-0.5 text-white outline-none"
+                    />
+                ) : (
+                    <span className="truncate flex-1">{obj.name}</span>
+                )}
+                {isGroup && (
+                    <span className="text-[9px] text-gray-600">({actualObjects.length})</span>
+                )}
+                {!obj.isBaseMap && (
+                    <>
+                        <button 
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                updateObject(obj.id, 'locked', !obj.locked); 
+                            }} 
+                            className="hover:text-white p-1 rounded hover:bg-[#333]" 
+                            title={obj.locked ? "解锁" : "锁定"}
+                        >
+                            {obj.locked ? <Lock size={10} /> : <Unlock size={10} />}
+                        </button>
+                        <button 
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                updateObject(obj.id, 'visible', !obj.visible); 
+                            }} 
+                            className="hover:text-white p-1 rounded hover:bg-[#333]"
+                        >
+                            {obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}
+                        </button>
+                    </>
+                )}
+            </div>
+            
+            {isGroup && children.length > 0 && (
+                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-700 pl-2">
+                    {children.map(child => (
+                        <LayerItem
+                            key={child.id}
+                            obj={child}
+                            allObjects={allObjects}
+                            selectedIds={selectedIds}
+                            editingNameId={editingNameId}
+                            editingName={editingName}
+                            setEditingName={setEditingName}
+                            setToolMode={setToolMode}
+                            setSelectedId={setSelectedId}
+                            setSelectedIds={setSelectedIds}
+                            startEditingName={startEditingName}
+                            saveEditingName={saveEditingName}
+                            cancelEditingName={cancelEditingName}
+                            updateObject={updateObject}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- Components for New Data Models ---
 const PathRenderer = ({ path, objects, isSelected }) => {
     const source = objects.find(o => o.id === path.sourceId);
@@ -5243,126 +5397,36 @@ const App = () => {
                                 </div>
                             )}
 
-                            {sidebarTab === 'layers' && (<div className="pt-2"><div className="text-[10px] font-bold text-gray-600 uppercase mb-2 px-1 flex justify-between"><span>场景对象</span><span className="bg-[#222] px-1.5 rounded text-[9px]">{filteredObjects.filter(o => o.type !== 'group').length}</span></div><div className="space-y-0.5">{[...filteredObjects].reverse().filter(obj => !obj.parentId).map(obj => {
-                                const isGroup = obj.type === 'group';
-                                const children = isGroup ? filteredObjects.filter(child => child.parentId === obj.id) : [];
-                                return (
-                                    <div key={obj.id}>
-                                        <div onClick={(e) => {
-                                            if (!obj.locked) {
-                                                setToolMode('select');
-                                                if (e.shiftKey) {
-                                                    if (isGroup) {
-                                                        // Shift+点击组：切换组和所有子对象的选中状态
-                                                        const groupAndChildren = [obj.id, ...children.map(c => c.id)];
-                                                        const allSelected = groupAndChildren.every(id => selectedIds.includes(id));
-                                                        const newIds = allSelected
-                                                            ? selectedIds.filter(id => !groupAndChildren.includes(id))
-                                                            : [...new Set([...selectedIds, ...groupAndChildren])];
-                                                        setSelectedIds(newIds);
-                                                        setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
-                                                    } else {
-                                                        const newIds = selectedIds.includes(obj.id) ? selectedIds.filter(id => id !== obj.id) : [...selectedIds, obj.id];
-                                                        setSelectedIds(newIds);
-                                                        setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
-                                                    }
-                                                } else {
-                                                    if (isGroup) {
-                                                        // 点击组：选中组和所有子对象
-                                                        const groupAndChildren = [obj.id, ...children.map(c => c.id)];
-                                                        setSelectedIds(groupAndChildren);
-                                                        setSelectedId(obj.id);
-                                                    } else {
-                                                        setSelectedId(obj.id);
-                                                        setSelectedIds([obj.id]);
-                                                    }
-                                                }
-                                            }
-                                        }} onDoubleClick={(e) => {
-                                            e.stopPropagation();
-                                            if (!obj.locked) {
-                                                startEditingName(obj.id, obj.name);
-                                            }
-                                        }} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors ${selectedIds.includes(obj.id) ? 'bg-blue-900/30 text-blue-100 border-l-2 border-blue-500' : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300 border-l-2 border-transparent'} ${obj.locked ? 'opacity-50' : ''}`}><div className="min-w-[16px] flex justify-center">{obj.isBaseMap ? <Map size={12} className="text-blue-400" /> : (isGroup ? <Layers size={12} className="text-purple-400" /> : obj.type.includes('wall') ? <BrickWall size={12} /> : obj.type === 'floor' ? <LandPlot size={12} /> : <BoxIcon size={12} />)}</div>{editingNameId === obj.id ? (
-                                            <input
-                                                type="text"
-                                                value={editingName}
-                                                onChange={(e) => setEditingName(e.target.value)}
-                                                onBlur={saveEditingName}
-                                                onKeyDown={(e) => {
-                                                    e.stopPropagation();
-                                                    if (e.key === 'Enter') {
-                                                        saveEditingName();
-                                                    } else if (e.key === 'Escape') {
-                                                        cancelEditingName();
-                                                    }
-                                                }}
-                                                onClick={(e) => e.stopPropagation()}
-                                                autoFocus
-                                                className="flex-1 bg-[#1a1a1a] border border-blue-500 rounded px-1 py-0.5 text-white outline-none"
-                                            />
-                                        ) : (
-                                            <span className="truncate flex-1">{obj.name}</span>
-                                        )}{isGroup && (() => {
-                                            const actualObjects = children.filter(c => c.type !== 'group');
-                                            console.log(`📊 组合"${obj.name}"统计:`, {
-                                                total: children.length,
-                                                actualObjects: actualObjects.length,
-                                                children: children.map(c => ({ name: c.name, type: c.type }))
-                                            });
-                                            return <span className="text-[9px] text-gray-600">({actualObjects.length})</span>;
-                                        })()}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'locked', !obj.locked); }} className="hover:text-white p-1 rounded hover:bg-[#333]" title={obj.locked ? "解锁" : "锁定"}>{obj.locked ? <Lock size={10} /> : <Unlock size={10} />}</button>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'visible', !obj.visible); }} className="hover:text-white p-1 rounded hover:bg-[#333]">{obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}</button>}</div>
-                                        {isGroup && children.length > 0 && (
-                                            <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-700 pl-2">
-                                                {children.map(child => (
-                                                    <div key={child.id} onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (!child.locked) {
-                                                            setToolMode('select');
-                                                            if (e.shiftKey) {
-                                                                const newIds = selectedIds.includes(child.id) ? selectedIds.filter(id => id !== child.id) : [...selectedIds, child.id];
-                                                                setSelectedIds(newIds);
-                                                                setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
-                                                            } else {
-                                                                setSelectedId(child.id);
-                                                                setSelectedIds([child.id]);
-                                                            }
-                                                        }
-                                                    }} onDoubleClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (!child.locked) {
-                                                            startEditingName(child.id, child.name);
-                                                        }
-                                                    }} className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-[10px] transition-colors ${selectedIds.includes(child.id) ? 'bg-blue-900/20 text-blue-200' : 'text-gray-600 hover:bg-[#1a1a1a] hover:text-gray-400'} ${child.locked ? 'opacity-50' : ''}`}>
-                                                        <div className="min-w-[14px] flex justify-center">{child.type.includes('wall') ? <BrickWall size={10} /> : child.type === 'floor' ? <LandPlot size={10} /> : <BoxIcon size={10} />}</div>
-                                                        {editingNameId === child.id ? (
-                                                            <input
-                                                                type="text"
-                                                                value={editingName}
-                                                                onChange={(e) => setEditingName(e.target.value)}
-                                                                onBlur={saveEditingName}
-                                                                onKeyDown={(e) => {
-                                                                    e.stopPropagation();
-                                                                    if (e.key === 'Enter') {
-                                                                        saveEditingName();
-                                                                    } else if (e.key === 'Escape') {
-                                                                        cancelEditingName();
-                                                                    }
-                                                                }}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                autoFocus
-                                                                className="flex-1 bg-[#1a1a1a] border border-blue-500 rounded px-1 py-0.5 text-white outline-none text-[10px]"
-                                                            />
-                                                        ) : (
-                                                            <span className="truncate flex-1">{child.name}</span>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                            {sidebarTab === 'layers' && (
+                                <div className="pt-2">
+                                    <div className="text-[10px] font-bold text-gray-600 uppercase mb-2 px-1 flex justify-between">
+                                        <span>场景对象</span>
+                                        <span className="bg-[#222] px-1.5 rounded text-[9px]">
+                                            {filteredObjects.filter(o => o.type !== 'group').length}
+                                        </span>
                                     </div>
-                                );
-                            })}</div></div>)}
+                                    <div className="space-y-0.5">
+                                        {[...filteredObjects].reverse().filter(obj => !obj.parentId).map(obj => (
+                                            <LayerItem
+                                                key={obj.id}
+                                                obj={obj}
+                                                allObjects={filteredObjects}
+                                                selectedIds={selectedIds}
+                                                editingNameId={editingNameId}
+                                                editingName={editingName}
+                                                setEditingName={setEditingName}
+                                                setToolMode={setToolMode}
+                                                setSelectedId={setSelectedId}
+                                                setSelectedIds={setSelectedIds}
+                                                startEditingName={startEditingName}
+                                                saveEditingName={saveEditingName}
+                                                cancelEditingName={cancelEditingName}
+                                                updateObject={updateObject}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* 场景切换 UI */}
