@@ -7639,12 +7639,20 @@ const App = () => {
                                             <span className="text-xs text-white">{floors.find(f => f.id === currentFloorId)?.name || '默认场景'}</span>
                                         </div>
                                         <div className="flex items-center justify-between">
+                                            <span className="text-xs text-gray-400">对象总数</span>
+                                            <span className="text-xs text-white">{objects.filter(o => !o.isBaseMap && o.type !== 'map_image').length} 个</span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
                                             <span className="text-xs text-gray-400">点位数量</span>
                                             <span className="text-xs text-white">{objects.filter(o => o.type === 'waypoint').length} 个</span>
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs text-gray-400">路径数量</span>
                                             <span className="text-xs text-white">{objects.filter(o => o.type === 'path_line').length} 条</span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-gray-400">组合数量</span>
+                                            <span className="text-xs text-white">{objects.filter(o => o.type === 'group').length} 个</span>
                                         </div>
                                     </div>
 
