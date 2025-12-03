@@ -3339,8 +3339,12 @@ const App = () => {
     // 键盘快捷键处理
     useEffect(() => {
         const handleKeyDown = (e) => {
-            // 忽略输入框中的按键事件（除了ESC）
-            if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.key !== 'Escape') {
+            // 检查当前焦点是否在输入框中（使用 document.activeElement 更可靠）
+            const activeEl = document.activeElement;
+            const isInInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+            
+            // 如果在输入框中，只允许ESC键
+            if (isInInput && e.key !== 'Escape') {
                 return;
             }
             
@@ -4429,8 +4433,18 @@ const App = () => {
     // Keyboard Shortcuts Effect - Moved here to ensure all functions are defined
     useEffect(() => {
         const handleKeyDown = (e) => {
-            // 忽略输入框中的按键事件
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            // 检查当前焦点是否在输入框中（使用 document.activeElement 更可靠）
+            const activeEl = document.activeElement;
+            const isInInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+            
+            // 如果在输入框中，只允许 Ctrl+S 保存
+            if (isInInput) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    saveCurrentScene();
+                }
+                return; // 其他快捷键都不处理
+            }
 
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
             if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
