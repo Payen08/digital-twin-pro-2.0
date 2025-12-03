@@ -3865,6 +3865,7 @@ const App = () => {
                 position: [centerX, 0, centerZ],
                 rotation: [0, 0, 0],
                 scale: [1, 1, 1],
+                children: networkObjectIds, // 记录子对象ID列表
                 color: '#888888',
                 opacity: 1,
                 visible: true,
@@ -3876,9 +3877,10 @@ const App = () => {
                 const obj = newObjects.find(o => o.id === objId);
                 if (obj) {
                     obj.parentId = groupId;
+                    // 设置相对位置（相对于组中心）
                     obj.relativePosition = [
                         obj.position[0] - centerX,
-                        obj.position[1],
+                        obj.position[1] - 0, // 组的Y坐标是0
                         obj.position[2] - centerZ
                     ];
                 }
