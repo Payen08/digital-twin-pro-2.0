@@ -1878,7 +1878,7 @@ const PropSection = ({ title, children }) => {
     );
 };
 const PropRow = ({ label, children, vertical = false }) => (<div className={`flex ${vertical ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}><label className={`text-[11px] text-gray-500 shrink-0 ${vertical ? 'w-full text-left pl-1' : 'w-16'}`}>{label}</label><div className="flex-1 flex gap-2 w-full">{children}</div></div>);
-const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, className }) => {
+const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, className, min }) => {
     const [localStr, setLocalStr] = useState(value?.toString() || '0');
     const [isEditing, setIsEditing] = useState(false);
 
@@ -1901,14 +1901,20 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
     const commit = () => {
         setIsEditing(false);
         if (localStr === '' || localStr === '-' || localStr === '.') {
-            setLocalStr('0');
-            onChange(0);
+            const defaultVal = min !== undefined ? min : 0;
+            setLocalStr(defaultVal.toString());
+            onChange(defaultVal);
             return;
         }
         let num = parseFloat(localStr);
         if (isNaN(num)) {
-            num = 0;
-            setLocalStr('0');
+            const defaultVal = min !== undefined ? min : 0;
+            num = defaultVal;
+            setLocalStr(defaultVal.toString());
+        } else if (min !== undefined && num < min) {
+            // 只有在提交时才应用最小值限制
+            num = min;
+            setLocalStr(min.toString());
         }
         onChange(num);
         // 不强制更新 localStr，让外部 value 自然同步
@@ -4214,42 +4220,12 @@ const App = () => {
     };
 
     const updateTransform = (id, type, axisIdx, value) => {
-        // 处理输入值
-        let finalValue = value;
-        
-        // 如果是空值，根据类型设置默认值
-        if (value === '' || value === null || value === undefined) {
-            if (type === 'scale') {
-                finalValue = 0.01; // 缩放最小值
-            } else if (type === 'rotation') {
-                finalValue = 0; // 旋转默认为0
-            } else {
-                finalValue = 0; // 位置默认为0
-            }
-        } else {
-            const num = parseFloat(value);
-            if (isNaN(num)) {
-                // 无效值，使用默认值
-                if (type === 'scale') {
-                    finalValue = 0.01;
-                } else {
-                    finalValue = 0;
-                }
-            } else {
-                // 只对scale应用最小值限制
-                if (type === 'scale') {
-                    finalValue = Math.max(num, 0.01);
-                } else {
-                    // rotation和position允许任意值（包括0和负数）
-                    finalValue = num;
-                }
-            }
-        }
-        
+        // 直接使用传入的值，不做任何处理
+        // 最小值限制已经在SmartInput组件中处理
         const newObjects = objects.map(o => {
             if (o.id !== id) return o;
             const newArr = [...o[type]];
-            newArr[axisIdx] = finalValue;
+            newArr[axisIdx] = value;
             return { ...o, [type]: newArr };
         });
         commitHistory(newObjects);
@@ -7391,29 +7367,29 @@ const App = () => {
                                             <div className="flex gap-2">
                                                 <div className="flex-1">
                                                     <label className="text-[10px] text-gray-500 block mb-1">长度 L</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[0].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 0, parseFloat(e.target.value) || 1)}
-                                                        className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[0].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="text-[10px] text-gray-500 block mb-1">高度 H</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[1].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 1, parseFloat(e.target.value) || 1)}
-                                                        className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[1].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="text-[10px] text-gray-500 block mb-1">厚度 W</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[2].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 2, parseFloat(e.target.value) || 1)}
-                                                        className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[2].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                             </div>
@@ -7428,29 +7404,29 @@ const App = () => {
                                             <div className="flex gap-2">
                                                 <div className="flex-1">
                                                     <label className="text-[10px] text-gray-500 block mb-1">X</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[0].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 0, parseFloat(e.target.value) || 1)}
-                                                        className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[0].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="text-[10px] text-gray-500 block mb-1">Y</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[1].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 1, parseFloat(e.target.value) || 1)}
-                                                        className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[1].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="text-[10px] text-gray-500 block mb-1">Z</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[2].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 2, parseFloat(e.target.value) || 1)}
-                                                        className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[2].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                             </div>
@@ -7548,29 +7524,29 @@ const App = () => {
                                             <div className="space-y-1.5">
                                                 <div className="flex items-center gap-2">
                                                     <label className="text-[11px] text-gray-400 w-12">X</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[0].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 0, parseFloat(e.target.value) || 1)}
-                                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[0].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <label className="text-[11px] text-gray-400 w-12">Y</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[1].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 1, parseFloat(e.target.value) || 1)}
-                                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[1].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <label className="text-[11px] text-gray-400 w-12">Z</label>
-                                                    <input
-                                                        type="number"
-                                                        value={selectedObject.scale[2].toFixed(2)}
-                                                        onChange={(e) => updateTransform(selectedId, 'scale', 2, parseFloat(e.target.value) || 1)}
-                                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[2].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
+                                                        min={0.01}
+                                                        className=""
                                                     />
                                                 </div>
                                             </div>
