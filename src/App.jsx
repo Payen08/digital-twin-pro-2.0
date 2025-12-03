@@ -2531,7 +2531,7 @@ const App = () => {
         { type: 'door', label: '标准门', icon: DoorOpen, category: '建筑' },
         { type: 'column', label: '标准柱子', icon: Columns, category: '建筑' },
         { type: 'floor', label: '标准地面', icon: LandPlot, category: '建筑' },
-        { type: 'cube', label: '正方体', icon: Box, category: '建筑' },
+        { type: 'cube', label: '占位方块', icon: Box, category: '建筑' },
         { type: 'cnc', label: 'CNC', icon: Server, category: '设备', modelUrl: `${import.meta.env.BASE_URL}cnc.glb`, modelScale: 1 },
     ];
     const allAssets = [...defaultAssets, ...customAssets];
@@ -3986,7 +3986,7 @@ const App = () => {
                     break;
                 case 'cube':
                     defaultScale = [1, 1, 1];
-                    name = '正方体';
+                    name = '占位方块';
                     color = '#888888';
                     yOffset = 0.5;
                     break;
@@ -6625,13 +6625,13 @@ const App = () => {
                                                 const newObjects = objects.map(obj => {
                                                     if (selectedIds.includes(obj.id)) {
                                                         const newPos = [...obj.position];
-                                                        // 正方体原点在中心，抬高半个高度
+                                                        // 占位方块原点在中心，抬高半个高度
                                                         newPos[1] = 0.5;
                                                         return {
                                                             ...obj,
                                                             type: 'cube',
                                                             modelUrl: null,
-                                                            name: `正方体`,
+                                                            name: `占位方块`,
                                                             scale: [1, 1, 1],
                                                             position: newPos,
                                                             rotation: [0, 0, 0]
@@ -6645,7 +6645,7 @@ const App = () => {
                                             className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
                                         >
                                             <Box size={20} />
-                                            <span className="text-[10px]">正方体</span>
+                                            <span className="text-[10px]">占位方块</span>
                                         </button>
                                         <button
                                             onClick={() => {
@@ -7157,7 +7157,7 @@ const App = () => {
                                                     className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
                                                 >
                                                     <Box size={20} />
-                                                    <span className="text-[10px]">正方体</span>
+                                                    <span className="text-[10px]">占位方块</span>
                                                 </button>
                                             </div>
                                             {customAssets.length > 0 && (
@@ -7593,7 +7593,7 @@ const App = () => {
                                                 </button>
                                                 <button onClick={() => batchReplaceWaypointModels('cube')} className="flex flex-col items-center gap-1 p-2 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400">
                                                     <Box size={14} />
-                                                    <span className="text-[9px]">正方体</span>
+                                                    <span className="text-[9px]">占位方块</span>
                                                 </button>
                                             </div>
                                             {customAssets.length > 0 ? (
@@ -7650,10 +7650,6 @@ const App = () => {
                                             <span className="text-xs text-gray-400">路径数量</span>
                                             <span className="text-xs text-white">{objects.filter(o => o.type === 'path_line').length} 条</span>
                                         </div>
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-gray-400">组合数量</span>
-                                            <span className="text-xs text-white">{objects.filter(o => o.type === 'group').length} 个</span>
-                                        </div>
                                     </div>
 
                                     {/* 分隔线 */}
@@ -7691,6 +7687,10 @@ const App = () => {
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs text-gray-400">墙体</span>
                                             <span className="text-xs text-white">{objects.filter(o => o.type === 'wall' || o.type === 'curved_wall').length} 个</span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-gray-400">占位方块</span>
+                                            <span className="text-xs text-white">{objects.filter(o => o.type === 'cube').length} 个</span>
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs text-gray-400">门</span>
