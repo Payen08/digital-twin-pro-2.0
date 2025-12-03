@@ -1698,12 +1698,13 @@ const SidebarItem = ({ asset, onDragStart, onEdit }) => {
     );
 };
 
-// 更新后的资产编辑弹窗：支持 3D 预览
-const AssetEditModal = ({ asset, onClose, onSave }) => {
+// 更新后的资产编辑弹窗：支持 3D 预览、删除、导出、替换
+const AssetEditModal = ({ asset, onClose, onSave, onDelete, onExport, onReplace }) => {
     const [label, setLabel] = useState(asset.label);
     const [scale, setScale] = useState(asset.modelScale || 1);
     const [rotationY, setRotationY] = useState(asset.rotationY || 0);
     const [jsonData, setJsonData] = useState(asset.jsonData || '{ }');
+    const replaceInputRef = useRef(null);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
@@ -1750,6 +1751,29 @@ const AssetEditModal = ({ asset, onClose, onSave }) => {
                             </div>
                             <textarea value={jsonData} onChange={e => setJsonData(e.target.value)} className="w-full h-32 bg-[#0f0f0f] border border-[#333] rounded p-2 text-[10px] font-mono text-green-400 outline-none resize-none focus:border-blue-500" placeholder="{ 'key': 'value' }"></textarea>
                         </div>
+
+                        {/* 替换模型文件 */}
+                        <div>
+                            <label className="text-[10px] text-gray-500 block mb-1.5">替换模型文件</label>
+                            <input 
+                                type="file" 
+                                ref={replaceInputRef} 
+                                className="hidden" 
+                                accept=".glb,.gltf" 
+                                onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    if (file && onReplace) {
+                                        onReplace(asset, file);
+                                    }
+                                }} 
+                            />
+                            <button 
+                                onClick={() => replaceInputRef.current?.click()} 
+                                className="w-full py-2 bg-[#1a1a1a] border border-[#333] rounded text-xs text-gray-400 hover:text-white hover:border-blue-500 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Upload size={14} /> 选择新的.glb文件
+                            </button>
+                        </div>
                     </div>
 
                     {/* 右侧：3D 实时预览 */}
@@ -1774,9 +1798,33 @@ const AssetEditModal = ({ asset, onClose, onSave }) => {
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-[#2a2a2a] bg-[#1a1a1a] flex justify-end gap-2">
-                    <button onClick={onClose} className="px-4 py-2 rounded text-xs text-gray-400 hover:bg-[#252525] transition-colors border border-transparent hover:border-[#333]">取消</button>
-                    <button onClick={() => onSave({ ...asset, label, modelScale: scale, rotationY, jsonData })} className="px-4 py-2 rounded text-xs bg-blue-600 text-white hover:bg-blue-500 transition-colors flex items-center gap-1 shadow-lg shadow-blue-900/20"><Save size={14} /> 保存配置</button>
+                <div className="p-4 border-t border-[#2a2a2a] bg-[#1a1a1a] flex justify-between gap-2">
+                    {/* 左侧：删除和导出按钮 */}
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => {
+                                if (window.confirm(`确定要删除资产"${asset.label}"吗？\n\n使用该资产的所有对象将被重置为默认几何体。`)) {
+                                    onDelete(asset);
+                                    onClose();
+                                }
+                            }} 
+                            className="px-4 py-2 rounded text-xs text-red-400 hover:bg-red-900/20 transition-colors border border-red-500/30 hover:border-red-500 flex items-center gap-1"
+                        >
+                            <Trash2 size={14} /> 删除资产
+                        </button>
+                        <button 
+                            onClick={() => onExport(asset)} 
+                            className="px-4 py-2 rounded text-xs text-gray-400 hover:text-white hover:bg-[#252525] transition-colors border border-[#333] hover:border-blue-500 flex items-center gap-1"
+                        >
+                            <Download size={14} /> 导出.glb
+                        </button>
+                    </div>
+                    
+                    {/* 右侧：取消和保存按钮 */}
+                    <div className="flex gap-2">
+                        <button onClick={onClose} className="px-4 py-2 rounded text-xs text-gray-400 hover:bg-[#252525] transition-colors border border-transparent hover:border-[#333]">取消</button>
+                        <button onClick={() => onSave({ ...asset, label, modelScale: scale, rotationY, jsonData })} className="px-4 py-2 rounded text-xs bg-blue-600 text-white hover:bg-blue-500 transition-colors flex items-center gap-1 shadow-lg shadow-blue-900/20"><Save size={14} /> 保存配置</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3332,6 +3380,99 @@ const App = () => {
         setEditingAsset(null);
     };
 
+    // 删除自定义资产
+    const handleDeleteAsset = (asset) => {
+        // 从资产库中删除
+        setCustomAssets(customAssets.filter(a => a.id !== asset.id));
+        
+        // 重置所有使用该资产的对象为默认几何体
+        const updatedObjects = objects.map(obj => {
+            if (obj.assetId === asset.id || obj.modelUrl === asset.modelUrl) {
+                console.log(`🔄 重置对象: ${obj.name}`);
+                return {
+                    ...obj,
+                    type: 'cube',
+                    modelUrl: null,
+                    modelScale: 1,
+                    assetId: undefined
+                };
+            }
+            return obj;
+        });
+        
+        commitHistory(updatedObjects);
+        console.log('✅ 已删除资产:', asset.label);
+    };
+
+    // 导出自定义资产为.glb文件
+    const handleExportAsset = (asset) => {
+        try {
+            // Base64转Blob
+            const base64Data = asset.modelUrl.split(',')[1];
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'model/gltf-binary' });
+            
+            // 创建下载链接
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${asset.label}.glb`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            console.log('✅ 已导出资产:', asset.label);
+        } catch (error) {
+            console.error('❌ 导出失败:', error);
+            alert('导出失败！请检查资产文件是否完整。');
+        }
+    };
+
+    // 替换自定义资产的模型文件
+    const handleReplaceAsset = (asset, file) => {
+        if (file.size > 10 * 1024 * 1024) {
+            alert('⚠️ 文件太大！请选择小于10MB的模型文件。');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const base64Data = event.target.result;
+            const updatedAsset = {
+                ...asset,
+                modelUrl: base64Data
+            };
+            
+            // 更新资产库
+            setCustomAssets(customAssets.map(a => a.id === asset.id ? updatedAsset : a));
+            
+            // 同步更新所有使用该资产的对象
+            const updatedObjects = objects.map(obj => {
+                if (obj.assetId === asset.id) {
+                    return {
+                        ...obj,
+                        modelUrl: base64Data
+                    };
+                }
+                return obj;
+            });
+            
+            commitHistory(updatedObjects);
+            console.log('✅ 已替换资产模型:', asset.label);
+            alert(`✅ 已替换"${asset.label}"的模型文件`);
+        };
+        reader.onerror = () => {
+            alert('❌ 文件读取失败！');
+        };
+        reader.readAsDataURL(file);
+    };
+
     // 内置地图模板
     const builtInMapTemplates = [
         {
@@ -4278,7 +4419,16 @@ const App = () => {
 
     return (
         <div className={`flex h-screen w-screen bg-[#080808] text-gray-300 overflow-hidden select-none ${toolMode.startsWith('draw') ? 'cursor-crosshair' : ''}`}>
-            {editingAsset && (<AssetEditModal asset={editingAsset} onClose={() => setEditingAsset(null)} onSave={handleUpdateAsset} />)}
+            {editingAsset && (
+                <AssetEditModal 
+                    asset={editingAsset} 
+                    onClose={() => setEditingAsset(null)} 
+                    onSave={handleUpdateAsset}
+                    onDelete={handleDeleteAsset}
+                    onExport={handleExportAsset}
+                    onReplace={handleReplaceAsset}
+                />
+            )}
 
             {/* Map Selector Modal */}
             {showMapSelector && (
