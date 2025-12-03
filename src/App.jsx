@@ -82,22 +82,14 @@ const LayerItem = ({
                     if (!obj.locked) {
                         setToolMode('select');
                         if (e.shiftKey) {
-                            if (isGroup) {
-                                const groupAndChildren = [obj.id, ...children.map(c => c.id)];
-                                const allSelected = groupAndChildren.every(id => selectedIds.includes(id));
-                                const newIds = allSelected 
-                                    ? selectedIds.filter(id => !groupAndChildren.includes(id))
-                                    : [...new Set([...selectedIds, ...groupAndChildren])];
-                                setSelectedIds(newIds);
-                                setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
-                            } else {
-                                const newIds = selectedIds.includes(obj.id) 
-                                    ? selectedIds.filter(id => id !== obj.id) 
-                                    : [...selectedIds, obj.id];
-                                setSelectedIds(newIds);
-                                setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
-                            }
+                            // Shift+点击：多选模式，只选中对象本身（不包含子对象）
+                            const newIds = selectedIds.includes(obj.id) 
+                                ? selectedIds.filter(id => id !== obj.id) 
+                                : [...selectedIds, obj.id];
+                            setSelectedIds(newIds);
+                            setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
                         } else {
+                            // 普通点击：选中对象及其所有子对象
                             if (isGroup) {
                                 const groupAndChildren = [obj.id, ...children.map(c => c.id)];
                                 setSelectedIds(groupAndChildren);
