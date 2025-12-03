@@ -5252,30 +5252,16 @@ const App = () => {
                                             if (!obj.locked) {
                                                 setToolMode('select');
                                                 if (e.shiftKey) {
-                                                    if (isGroup) {
-                                                        // Shift+点击组：切换组和所有子对象的选中状态
-                                                        const groupAndChildren = [obj.id, ...children.map(c => c.id)];
-                                                        const allSelected = groupAndChildren.every(id => selectedIds.includes(id));
-                                                        const newIds = allSelected
-                                                            ? selectedIds.filter(id => !groupAndChildren.includes(id))
-                                                            : [...new Set([...selectedIds, ...groupAndChildren])];
-                                                        setSelectedIds(newIds);
-                                                        setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
-                                                    } else {
-                                                        const newIds = selectedIds.includes(obj.id) ? selectedIds.filter(id => id !== obj.id) : [...selectedIds, obj.id];
-                                                        setSelectedIds(newIds);
-                                                        setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
-                                                    }
+                                                    // Shift+点击：切换对象的选中状态（只选中对象本身）
+                                                    const newIds = selectedIds.includes(obj.id) 
+                                                        ? selectedIds.filter(id => id !== obj.id) 
+                                                        : [...selectedIds, obj.id];
+                                                    setSelectedIds(newIds);
+                                                    setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
                                                 } else {
-                                                    if (isGroup) {
-                                                        // 点击组：选中组和所有子对象
-                                                        const groupAndChildren = [obj.id, ...children.map(c => c.id)];
-                                                        setSelectedIds(groupAndChildren);
-                                                        setSelectedId(obj.id);
-                                                    } else {
-                                                        setSelectedId(obj.id);
-                                                        setSelectedIds([obj.id]);
-                                                    }
+                                                    // 点击对象：只选中对象本身（包括组）
+                                                    setSelectedId(obj.id);
+                                                    setSelectedIds([obj.id]);
                                                 }
                                             }
                                         }} onDoubleClick={(e) => {
