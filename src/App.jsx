@@ -3888,10 +3888,25 @@ const App = () => {
             console.log('📦 已创建场景路网组:', networkObjectIds.length, '个对象');
         }
 
-        commitHistory(newObjects);
         console.log('✅ 地图加载完成!');
         console.log('  - 总对象数:', newObjects.length);
         console.log('  - 地图底图:', newObjects.filter(o => o.type === 'map_image').length);
+        console.log('  - 组对象:', newObjects.filter(o => o.type === 'group').length);
+        console.log('  - 有parentId的对象:', newObjects.filter(o => o.parentId).length);
+        
+        // 输出组对象的详细信息
+        const groups = newObjects.filter(o => o.type === 'group');
+        groups.forEach(group => {
+            const children = newObjects.filter(o => o.parentId === group.id);
+            console.log(`📦 组"${group.name}":`, {
+                id: group.id,
+                position: group.position,
+                children: children.length,
+                childrenNames: children.map(c => c.name).slice(0, 5)
+            });
+        });
+        
+        commitHistory(newObjects);
         console.log('  - Waypoint点位:', newObjects.filter(o => o.type === 'waypoint').length);
         console.log('  - 路径线:', newObjects.filter(o => o.type === 'path_line').length);
 
