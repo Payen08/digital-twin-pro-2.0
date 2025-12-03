@@ -2949,15 +2949,12 @@ const App = () => {
             }
             console.log('📦 自动选中顶层父组:', topParent.id, topParent.name);
             idsToSelect = [topParent.id];
-            // 如果父组有子对象，也加入选择（用于整体移动）
-            if (topParent.type === 'group' && topParent.children) {
-                idsToSelect = [topParent.id, ...topParent.children];
-            }
+            // 只选中组本身，不自动选中子对象
         }
-        // 选择组对象 - 自动选中所有子对象
-        else if (obj && obj.type === 'group' && obj.children) {
-            idsToSelect = [id, ...obj.children];
-            console.log('📦 选中组对象及其子对象:', idsToSelect);
+        // 选择组对象 - 只选中组本身
+        else if (obj && obj.type === 'group') {
+            idsToSelect = [id];
+            console.log('📦 选中组对象:', id);
         }
 
         if (multiSelect) {
@@ -7215,9 +7212,9 @@ const App = () => {
                                                     <span className="text-[9px]">正方体</span>
                                                 </button>
                                             </div>
-                                            {customAssets.length > 0 && (
+                                            {customAssets.length > 0 ? (
                                                 <>
-                                                    <div className="text-[10px] text-gray-500 mb-2">自定义资产:</div>
+                                                    <div className="text-[10px] text-gray-500 mb-2">自定义资产: ({customAssets.length})</div>
                                                     <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto custom-scrollbar">
                                                         {customAssets.map((asset, idx) => (
                                                             <button
@@ -7232,6 +7229,8 @@ const App = () => {
                                                         ))}
                                                     </div>
                                                 </>
+                                            ) : (
+                                                <div className="text-[10px] text-gray-600 py-2 text-center">暂无自定义资产</div>
                                             )}
                                         </div>
                                     </PropSection>
