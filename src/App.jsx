@@ -3741,14 +3741,21 @@ const App = () => {
         alert(`✅ 已将 ${replaceableIds.length} 个对象替换为"${assetLabel}"模型`);
     };
 
-    // 从JSON加载地图
+    // 从JSON加载地图数据
     const loadMapFromJSON = (jsonData) => {
-        console.log('📋 开始加载地图数据...');
+        console.log('🚀 ========== 开始加载地图数据 ==========');
+        console.log('📋 JSON数据结构:', jsonData);
         console.log('mapfileEntitys 数量:', jsonData.mapfileEntitys?.length || 0);
         console.log('graphTopologys 数量:', jsonData.graphTopologys?.length || 0);
+        
+        if (jsonData.graphTopologys && jsonData.graphTopologys.length > 0) {
+            console.log('📍 第一个topology的poses数量:', jsonData.graphTopologys[0].poses?.length || 0);
+            console.log('🛤️ 第一个topology的paths数量:', jsonData.graphTopologys[0].paths?.length || 0);
+        }
 
         const newObjects = [...objects];
         const networkObjectIds = []; // 记录点位和路径的ID
+        console.log('📦 当前对象数量:', objects.length);
 
         // 1. 加载底图
         if (jsonData.mapfileEntitys && jsonData.mapfileEntitys.length > 0) {
