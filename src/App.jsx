@@ -7198,6 +7198,21 @@ const App = () => {
                                         const obj = objects.find(o => o.id === id);
                                         return obj && replaceableTypes.includes(obj.type);
                                     }).length;
+                                    
+                                    // 调试信息
+                                    if (selectedIds.length > 0) {
+                                        const selectedTypes = selectedIds.map(id => {
+                                            const obj = objects.find(o => o.id === id);
+                                            return obj ? obj.type : 'unknown';
+                                        });
+                                        console.log('🔍 批量替换检查:', {
+                                            selectedIds: selectedIds.length,
+                                            selectedTypes,
+                                            replaceableCount,
+                                            customAssetsCount: customAssets.length
+                                        });
+                                    }
+                                    
                                     return replaceableCount > 0 && (
                                         <PropSection title={`批量替换模型 (${replaceableCount} 个对象)`}>
                                         <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a]">
