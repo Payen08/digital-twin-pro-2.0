@@ -1895,84 +1895,65 @@ const PropSection = ({ title, children }) => {
 };
 const PropRow = ({ label, children, vertical = false }) => (<div className={`flex ${vertical ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}><label className={`text-[11px] text-gray-500 shrink-0 ${vertical ? 'w-full text-left pl-1' : 'w-16'}`}>{label}</label><div className="flex-1 flex gap-2 w-full">{children}</div></div>);
 const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, className, min }) => {
+    const inputRef = useRef(null);
     const [localStr, setLocalStr] = useState(value?.toString() || '0');
-    const [isEditing, setIsEditing] = useState(false);
-    const [hasSelected, setHasSelected] = useState(false); // 跟踪是否已经全选过
+    const [isFocused, setIsFocused] = useState(false);
 
-    // 同步外部 value 到本地状态
+    // 同步外部 value 到本地状态（只在非聚焦时）
     useEffect(() => {
-        if (!isEditing) {
+        if (!isFocused) {
             setLocalStr(value?.toString() || '0');
-            setHasSelected(false); // 重置全选标记
         }
-    }, [value, isEditing]);
+    }, [value, isFocused]);
 
     const handleFocus = (e) => {
-        if (!isEditing) {
-            // 只在第一次进入编辑模式时全选
-            setIsEditing(true);
-            setHasSelected(false);
-            // 使用setTimeout确保在下一帧执行，避免被后续的点击事件覆盖
-            setTimeout(() => {
-                if (!hasSelected) {
-                    e.target.select();
-                    setHasSelected(true);
-                }
-            }, 0);
-        }
-    };
-
-    const handleClick = (e) => {
-        // 如果已经在编辑模式，不做任何处理，让用户正常点击光标位置
-        if (isEditing && hasSelected) {
-            // 已经全选过了，这次点击是为了定位光标，不要再全选
-            return;
-        }
+        setIsFocused(true);
+        // 聚焦时全选
+        e.target.select();
     };
 
     const handleChange = (e) => {
+        // 允许输入任何内容，包括负号、小数点等
         setLocalStr(e.target.value);
     };
 
-    const commit = () => {
-        setIsEditing(false);
-        setHasSelected(false);
-        if (localStr === '' || localStr === '-' || localStr === '.') {
+    const handleBlur = () => {
+        setIsFocused(false);
+        
+        // 提交时验证
+        const trimmed = localStr.trim();
+        if (trimmed === '' || trimmed === '-' || trimmed === '.' || trimmed === '-.') {
+            // 无效输入，恢复默认值
             const defaultVal = min !== undefined ? min : 0;
             setLocalStr(defaultVal.toString());
             onChange(defaultVal);
             return;
         }
-        let num = parseFloat(localStr);
+        
+        let num = parseFloat(trimmed);
         if (isNaN(num)) {
+            // 无法解析，恢复默认值
             const defaultVal = min !== undefined ? min : 0;
-            num = defaultVal;
             setLocalStr(defaultVal.toString());
-        } else if (min !== undefined && num < min) {
-            // 只有在提交时才应用最小值限制
-            num = min;
-            setLocalStr(min.toString());
+            onChange(defaultVal);
+        } else {
+            // 应用最小值限制
+            if (min !== undefined && num < min) {
+                num = min;
+                setLocalStr(min.toString());
+            }
+            onChange(num);
         }
-        onChange(num);
-        // 不强制更新 localStr，让外部 value 自然同步
-    };
-
-    const handleBlur = () => {
-        commit();
     };
 
     const handleKeyDown = (e) => {
-        // 阻止Delete和Backspace键事件冒泡，避免触发删除对象
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            e.stopPropagation();
-        }
+        // 阻止所有按键事件冒泡，避免触发全局快捷键
+        e.stopPropagation();
         
         if (e.key === 'Enter') {
-            commit();
-            e.target.blur();
+            e.target.blur(); // 触发 handleBlur
         } else if (e.key === 'Escape') {
-            setIsEditing(false);
-            setHasSelected(false);
+            // 取消编辑，恢复原值
             setLocalStr(value?.toString() || '0');
             e.target.blur();
         }
@@ -1982,10 +1963,10 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
         <div className={`flex-1 relative flex items-center ${className || ''}`}>
             {label && <span className="pl-2 text-[9px] text-gray-500 font-bold select-none">{label}</span>}
             <input
+                ref={inputRef}
                 type="text"
                 value={localStr}
                 onFocus={handleFocus}
-                onClick={handleClick}
                 onChange={handleChange}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
