@@ -3358,6 +3358,11 @@ const App = () => {
     // 键盘快捷键处理
     useEffect(() => {
         const handleKeyDown = (e) => {
+            // 忽略输入框中的按键事件（除了ESC）
+            if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.key !== 'Escape') {
+                return;
+            }
+            
             // ESC 键：取消绘制模式，退出编辑模式，清除选择
             if (e.key === 'Escape') {
                 if (toolMode !== 'select') {
