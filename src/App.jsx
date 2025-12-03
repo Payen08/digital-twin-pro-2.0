@@ -3742,6 +3742,7 @@ const App = () => {
         console.log('graphTopologys 数量:', jsonData.graphTopologys?.length || 0);
 
         const newObjects = [...objects];
+        const networkObjectIds = []; // 记录点位和路径的ID
 
         // 1. 加载底图
         if (jsonData.mapfileEntitys && jsonData.mapfileEntitys.length > 0) {
@@ -3783,8 +3784,9 @@ const App = () => {
             jsonData.graphTopologys.forEach(topology => {
                 if (topology.poses) {
                     topology.poses.forEach(pose => {
+                        const poseId = `pose_${pose.uid}`;
                         const poseObj = {
-                            id: `pose_${pose.uid}`,
+                            id: poseId,
                             type: 'waypoint',
                             name: pose.name || pose.alias,
                             position: [pose.x, 0.1, pose.y],
@@ -3797,6 +3799,7 @@ const App = () => {
                         };
 
                         newObjects.push(poseObj);
+                        networkObjectIds.push(poseId); // 记录ID
                     });
                 }
 
@@ -3808,8 +3811,9 @@ const App = () => {
                         const targetPose = topology.poses.find(p => p.name === path.targetName);
 
                         if (sourcePose && targetPose) {
+                            const pathId = `path_${path.uid}`;
                             const pathObj = {
-                                id: `path_${path.uid}`,
+                                id: pathId,
                                 type: 'path_line',
                                 name: path.name || `路径 ${path.sourceName} -> ${path.targetName}`,
                                 points: [
@@ -3826,10 +3830,56 @@ const App = () => {
                             };
 
                             newObjects.push(pathObj);
+                            networkObjectIds.push(pathId); // 记录ID
                         }
                     });
                 }
             });
+        }
+
+        // 4. 如果有点位或路径，创建场景组
+        if (networkObjectIds.length > 0) {
+            const groupId = uuidv4();
+            
+            // 计算所有点位和路径的中心位置
+            const networkObjects = newObjects.filter(o => networkObjectIds.includes(o.id));
+            let sumX = 0, sumZ = 0;
+            networkObjects.forEach(obj => {
+                sumX += obj.position[0];
+                sumZ += obj.position[2];
+            });
+            const centerX = sumX / networkObjects.length;
+            const centerZ = sumZ / networkObjects.length;
+            
+            // 创建组对象
+            const sceneGroup = {
+                id: groupId,
+                type: 'group',
+                name: '场景路网',
+                position: [centerX, 0, centerZ],
+                rotation: [0, 0, 0],
+                scale: [1, 1, 1],
+                color: '#888888',
+                opacity: 1,
+                visible: true,
+                locked: false
+            };
+            
+            // 将所有点位和路径设置为组的子对象
+            networkObjectIds.forEach(objId => {
+                const obj = newObjects.find(o => o.id === objId);
+                if (obj) {
+                    obj.parentId = groupId;
+                    obj.relativePosition = [
+                        obj.position[0] - centerX,
+                        obj.position[1],
+                        obj.position[2] - centerZ
+                    ];
+                }
+            });
+            
+            newObjects.push(sceneGroup);
+            console.log('📦 已创建场景路网组:', networkObjectIds.length, '个对象');
         }
 
         commitHistory(newObjects);
