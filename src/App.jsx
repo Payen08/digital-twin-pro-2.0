@@ -740,7 +740,6 @@ const OrbitControlsWithDragDetection = React.forwardRef((props, ref) => {
         };
 
         const handleKeyDown = (e) => {
-            console.log('⌨️ Key down:', e.key, e.code, 'altKey:', e.altKey);
             if (e.code === 'Space') {
                 e.preventDefault(); // Prevent page scroll
                 keyState.space = true;
@@ -753,7 +752,6 @@ const OrbitControlsWithDragDetection = React.forwardRef((props, ref) => {
         };
 
         const handleKeyUp = (e) => {
-            console.log('⌨️ Key up:', e.key, e.code, 'altKey:', e.altKey);
             if (e.code === 'Space') {
                 keyState.space = false;
             }
@@ -1895,67 +1893,33 @@ const PropSection = ({ title, children }) => {
 };
 const PropRow = ({ label, children, vertical = false }) => (<div className={`flex ${vertical ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}><label className={`text-[11px] text-gray-500 shrink-0 ${vertical ? 'w-full text-left pl-1' : 'w-16'}`}>{label}</label><div className="flex-1 flex gap-2 w-full">{children}</div></div>);
 const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, className, min }) => {
-    const inputRef = useRef(null);
-    const [localStr, setLocalStr] = useState(value?.toString() || '0');
-    const [isFocused, setIsFocused] = useState(false);
-
-    // 同步外部 value 到本地状态（只在非聚焦时）
-    useEffect(() => {
-        if (!isFocused) {
-            setLocalStr(value?.toString() || '0');
-        }
-    }, [value, isFocused]);
-
-    const handleFocus = (e) => {
-        setIsFocused(true);
-        // 聚焦时全选
-        e.target.select();
-    };
-
+    // 直接使用原生number input，简单可靠
     const handleChange = (e) => {
-        // 允许输入任何内容，包括负号、小数点等
-        setLocalStr(e.target.value);
-    };
-
-    const handleBlur = () => {
-        setIsFocused(false);
-        
-        // 提交时验证
-        const trimmed = localStr.trim();
-        if (trimmed === '' || trimmed === '-' || trimmed === '.' || trimmed === '-.') {
-            // 无效输入，恢复默认值
-            const defaultVal = min !== undefined ? min : 0;
-            setLocalStr(defaultVal.toString());
-            onChange(defaultVal);
+        const val = e.target.value;
+        if (val === '' || val === '-') {
+            // 允许空值和单独的负号（用户正在输入）
             return;
         }
-        
-        let num = parseFloat(trimmed);
-        if (isNaN(num)) {
-            // 无法解析，恢复默认值
-            const defaultVal = min !== undefined ? min : 0;
-            setLocalStr(defaultVal.toString());
-            onChange(defaultVal);
-        } else {
-            // 应用最小值限制
-            if (min !== undefined && num < min) {
-                num = min;
-                setLocalStr(min.toString());
-            }
+        const num = parseFloat(val);
+        if (!isNaN(num)) {
             onChange(num);
         }
     };
 
-    const handleKeyDown = (e) => {
-        // 阻止所有按键事件冒泡，避免触发全局快捷键
-        e.stopPropagation();
-        
-        if (e.key === 'Enter') {
-            e.target.blur(); // 触发 handleBlur
-        } else if (e.key === 'Escape') {
-            // 取消编辑，恢复原值
-            setLocalStr(value?.toString() || '0');
-            e.target.blur();
+    const handleBlur = (e) => {
+        const val = e.target.value;
+        if (val === '' || val === '-') {
+            // 空值时恢复默认
+            const defaultVal = min !== undefined ? min : 0;
+            onChange(defaultVal);
+        } else {
+            let num = parseFloat(val);
+            if (isNaN(num)) {
+                num = min !== undefined ? min : 0;
+            } else if (min !== undefined && num < min) {
+                num = min;
+            }
+            onChange(num);
         }
     };
 
@@ -1963,15 +1927,17 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
         <div className={`flex-1 relative flex items-center ${className || ''}`}>
             {label && <span className="pl-2 text-[9px] text-gray-500 font-bold select-none">{label}</span>}
             <input
-                ref={inputRef}
-                type="text"
-                value={localStr}
-                onFocus={handleFocus}
+                type="number"
+                value={value}
+                step={step}
+                min={min}
                 onChange={handleChange}
                 onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
+                onKeyDown={(e) => e.stopPropagation()}
+                onKeyUp={(e) => e.stopPropagation()}
+                onKeyPress={(e) => e.stopPropagation()}
                 disabled={disabled}
-                className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed"
+                className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
             {suffix && <span className="absolute right-3 text-[10px] text-gray-500 select-none pointer-events-none">{suffix}</span>}
         </div>
