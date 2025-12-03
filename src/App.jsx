@@ -3121,18 +3121,28 @@ const App = () => {
         // 选择组对象 - 只选中组本身
         else if (obj && obj.type === 'group') {
             idsToSelect = [id];
-            console.log('📦 选中组对象:', id);
+            console.log('📦 选中组对象:', obj.name, '| multiSelect:', multiSelect);
         }
+
+        console.log('🔍 handleSelect:', {
+            objName: obj?.name,
+            objType: obj?.type,
+            multiSelect,
+            idsToSelect,
+            currentSelectedIds: selectedIds
+        });
 
         if (multiSelect) {
             const newIds = selectedIds.includes(id)
                 ? selectedIds.filter(i => !idsToSelect.includes(i)) // 取消选择
                 : [...selectedIds, ...idsToSelect]; // 添加选择
+            console.log('✅ 多选结果:', newIds.map(id => objects.find(o => o.id === id)?.name));
             setSelectedIds(newIds);
             setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
         } else {
-            setSelectedId(idsToSelect[0]); // 设置主选中ID为父组ID
+            console.log('✅ 单选结果:', idsToSelect.map(id => objects.find(o => o.id === id)?.name));
             setSelectedIds(idsToSelect);
+            setSelectedId(idsToSelect[0]); // 设置主选中ID为父组ID
         }
     }, [toolMode, selectedIds, objects, currentFloorLevel]);
 
@@ -3176,7 +3186,24 @@ const App = () => {
                 }
             }
 
-            // 缩放快捷键
+            // 变换模式快捷键（只在有选中对象时生效）
+            if (selectedIds.length > 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+                if (e.key === 'w' || e.key === 'W') {
+                    e.preventDefault();
+                    setTransformMode('translate');
+                    console.log('🔧 切换到移动模式');
+                } else if (e.key === 'e' || e.key === 'E') {
+                    e.preventDefault();
+                    setTransformMode('rotate');
+                    console.log('🔧 切换到旋转模式');
+                } else if (e.key === 'r' || e.key === 'R') {
+                    e.preventDefault();
+                    setTransformMode('scale');
+                    console.log('🔧 切换到缩放模式');
+                }
+            }
+
+            // 视图缩放快捷键
             if (e.key === '=' || e.key === '+') {
                 e.preventDefault();
                 handleZoomIn();
@@ -3186,6 +3213,31 @@ const App = () => {
             } else if (e.key === '0') {
                 e.preventDefault();
                 handleZoomFit();
+            }
+
+            // 删除快捷键
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
+                e.preventDefault();
+                handleBatchDelete(selectedIds);
+                setSelectedIds([]);
+                setSelectedId(null);
+                console.log('🗑️ 删除选中的对象');
+            }
+
+            // 复制快捷键
+            if ((e.metaKey || e.ctrlKey) && e.key === 'd' && selectedIds.length > 0) {
+                e.preventDefault();
+                handleBatchDuplicate(selectedIds);
+                console.log('📋 复制选中的对象');
+            }
+
+            // 全选快捷键
+            if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+                e.preventDefault();
+                const allIds = objects.filter(o => !o.isBaseMap).map(o => o.id);
+                setSelectedIds(allIds);
+                setSelectedId(allIds[0]);
+                console.log('✅ 全选所有对象');
             }
         };
 
