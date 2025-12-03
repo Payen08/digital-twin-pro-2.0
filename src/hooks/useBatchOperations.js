@@ -154,8 +154,24 @@ export function useBatchOperations(objects, setObjects, commitHistory) {
     // 移除子对象的 parentId 和 relativePosition，恢复为独立对象
     const newObjects = objects.map(obj => {
       if (obj.parentId === groupId) {
+        // 计算对象的世界坐标
+        let worldX = obj.position[0];
+        let worldY = obj.position[1];
+        let worldZ = obj.position[2];
+        
+        // 如果对象有relativePosition，计算其世界坐标
+        if (obj.relativePosition && groupObj) {
+          worldX = groupObj.position[0] + obj.relativePosition[0];
+          worldY = groupObj.position[1] + obj.relativePosition[1];
+          worldZ = groupObj.position[2] + obj.relativePosition[2];
+        }
+        
+        // 移除parentId和relativePosition，更新position为世界坐标
         const { parentId, relativePosition, ...rest } = obj;
-        return rest;
+        return {
+          ...rest,
+          position: [worldX, worldY, worldZ]
+        };
       }
       return obj;
     }).filter(obj => obj.id !== groupId); // 删除组对象本身

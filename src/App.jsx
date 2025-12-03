@@ -52,7 +52,28 @@ const LayerItem = ({
 }) => {
     const isGroup = obj.type === 'group';
     const children = isGroup ? allObjects.filter(child => child.parentId === obj.id) : [];
-    const actualObjects = children.filter(c => c.type !== 'group');
+    
+    // 递归计算所有后代对象的数量（排除组合）
+    const countDescendants = (parentId) => {
+        const directChildren = allObjects.filter(child => child.parentId === parentId);
+        let count = directChildren.filter(c => c.type !== 'group').length;
+        directChildren.filter(c => c.type === 'group').forEach(group => {
+            count += countDescendants(group.id);
+        });
+        return count;
+    };
+    
+    const actualObjectsCount = isGroup ? countDescendants(obj.id) : 0;
+    
+    // 调试日志
+    if (isGroup && obj.name.includes('组合')) {
+        console.log(`🔍 ${obj.name}:`, {
+            id: obj.id,
+            directChildren: children.length,
+            actualObjectsCount: actualObjectsCount,
+            children: children.map(c => ({ name: c.name, type: c.type, parentId: c.parentId }))
+        });
+    }
     
     return (
         <div>
@@ -135,7 +156,7 @@ const LayerItem = ({
                     <span className="truncate flex-1">{obj.name}</span>
                 )}
                 {isGroup && (
-                    <span className="text-[9px] text-gray-600">({actualObjects.length})</span>
+                    <span className="text-[9px] text-gray-600">({actualObjectsCount})</span>
                 )}
                 {!obj.isBaseMap && (
                     <>
@@ -163,7 +184,7 @@ const LayerItem = ({
             </div>
             
             {isGroup && children.length > 0 && (
-                <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-700 pl-2">
+                <div className="ml-6 mt-0.5 space-y-0.5 border-l-2 border-gray-600 pl-3">
                     {children.map(child => (
                         <LayerItem
                             key={child.id}
@@ -5406,7 +5427,14 @@ const App = () => {
                                         </span>
                                     </div>
                                     <div className="space-y-0.5">
-                                        {[...filteredObjects].reverse().filter(obj => !obj.parentId).map(obj => (
+                                        {(() => {
+                                            const topLevelObjects = [...filteredObjects].reverse().filter(obj => !obj.parentId);
+                                            console.log('📋 顶层对象列表:', topLevelObjects.map(o => ({ 
+                                                name: o.name, 
+                                                type: o.type, 
+                                                parentId: o.parentId 
+                                            })));
+                                            return topLevelObjects.map(obj => (
                                             <LayerItem
                                                 key={obj.id}
                                                 obj={obj}
@@ -5423,7 +5451,8 @@ const App = () => {
                                                 cancelEditingName={cancelEditingName}
                                                 updateObject={updateObject}
                                             />
-                                        ))}
+                                        ));
+                                        })()}
                                     </div>
                                 </div>
                             )}
