@@ -50,6 +50,7 @@ const LayerItem = ({
     cancelEditingName,
     updateObject
 }) => {
+    const [isExpanded, setIsExpanded] = useState(true); // 展开/收起状态
     const isGroup = obj.type === 'group';
     const children = isGroup ? allObjects.filter(child => child.parentId === obj.id) : [];
     
@@ -113,6 +114,20 @@ const LayerItem = ({
                         : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300 border-l-2 border-transparent'
                 } ${obj.locked ? 'opacity-50' : ''}`}
             >
+                {/* 展开/收起按钮 - 仅对组显示 */}
+                {isGroup && children.length > 0 && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsExpanded(!isExpanded);
+                        }}
+                        className="min-w-[16px] flex justify-center hover:text-white p-0.5 rounded hover:bg-[#333]"
+                        title={isExpanded ? "收起" : "展开"}
+                    >
+                        {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    </button>
+                )}
+                
                 <div className="min-w-[16px] flex justify-center">
                     {obj.isBaseMap ? (
                         <Map size={12} className="text-blue-400" />
@@ -175,7 +190,8 @@ const LayerItem = ({
                 )}
             </div>
             
-            {isGroup && children.length > 0 && (
+            {/* 子对象列表 - 只在展开时显示 */}
+            {isGroup && children.length > 0 && isExpanded && (
                 <div className="ml-6 mt-0.5 space-y-0.5 border-l-2 border-gray-600 pl-3">
                     {children.map(child => (
                         <LayerItem
