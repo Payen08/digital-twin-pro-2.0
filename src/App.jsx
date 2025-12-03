@@ -1897,17 +1897,37 @@ const PropRow = ({ label, children, vertical = false }) => (<div className={`fle
 const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, className, min }) => {
     const [localStr, setLocalStr] = useState(value?.toString() || '0');
     const [isEditing, setIsEditing] = useState(false);
+    const [hasSelected, setHasSelected] = useState(false); // 跟踪是否已经全选过
 
     // 同步外部 value 到本地状态
     useEffect(() => {
         if (!isEditing) {
             setLocalStr(value?.toString() || '0');
+            setHasSelected(false); // 重置全选标记
         }
     }, [value, isEditing]);
 
     const handleFocus = (e) => {
-        setIsEditing(true);
-        e.target.select(); // 选中所有文本，方便删除重新输入
+        if (!isEditing) {
+            // 只在第一次进入编辑模式时全选
+            setIsEditing(true);
+            setHasSelected(false);
+            // 使用setTimeout确保在下一帧执行，避免被后续的点击事件覆盖
+            setTimeout(() => {
+                if (!hasSelected) {
+                    e.target.select();
+                    setHasSelected(true);
+                }
+            }, 0);
+        }
+    };
+
+    const handleClick = (e) => {
+        // 如果已经在编辑模式，不做任何处理，让用户正常点击光标位置
+        if (isEditing && hasSelected) {
+            // 已经全选过了，这次点击是为了定位光标，不要再全选
+            return;
+        }
     };
 
     const handleChange = (e) => {
@@ -1916,6 +1936,7 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
 
     const commit = () => {
         setIsEditing(false);
+        setHasSelected(false);
         if (localStr === '' || localStr === '-' || localStr === '.') {
             const defaultVal = min !== undefined ? min : 0;
             setLocalStr(defaultVal.toString());
@@ -1941,11 +1962,17 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
     };
 
     const handleKeyDown = (e) => {
+        // 阻止Delete和Backspace键事件冒泡，避免触发删除对象
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.stopPropagation();
+        }
+        
         if (e.key === 'Enter') {
             commit();
             e.target.blur();
         } else if (e.key === 'Escape') {
             setIsEditing(false);
+            setHasSelected(false);
             setLocalStr(value?.toString() || '0');
             e.target.blur();
         }
@@ -1958,6 +1985,7 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
                 type="text"
                 value={localStr}
                 onFocus={handleFocus}
+                onClick={handleClick}
                 onChange={handleChange}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
