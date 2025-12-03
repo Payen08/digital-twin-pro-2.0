@@ -5303,7 +5303,15 @@ const App = () => {
                                             />
                                         ) : (
                                             <span className="truncate flex-1">{obj.name}</span>
-                                        )}{isGroup && <span className="text-[9px] text-gray-600">({children.filter(c => c.type !== 'group').length})</span>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'locked', !obj.locked); }} className="hover:text-white p-1 rounded hover:bg-[#333]" title={obj.locked ? "解锁" : "锁定"}>{obj.locked ? <Lock size={10} /> : <Unlock size={10} />}</button>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'visible', !obj.visible); }} className="hover:text-white p-1 rounded hover:bg-[#333]">{obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}</button>}</div>
+                                        )}{isGroup && (() => {
+                                            const actualObjects = children.filter(c => c.type !== 'group');
+                                            console.log(`📊 组合"${obj.name}"统计:`, {
+                                                total: children.length,
+                                                actualObjects: actualObjects.length,
+                                                children: children.map(c => ({ name: c.name, type: c.type }))
+                                            });
+                                            return <span className="text-[9px] text-gray-600">({actualObjects.length})</span>;
+                                        })()}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'locked', !obj.locked); }} className="hover:text-white p-1 rounded hover:bg-[#333]" title={obj.locked ? "解锁" : "锁定"}>{obj.locked ? <Lock size={10} /> : <Unlock size={10} />}</button>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'visible', !obj.visible); }} className="hover:text-white p-1 rounded hover:bg-[#333]">{obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}</button>}</div>
                                         {isGroup && children.length > 0 && (
                                             <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-700 pl-2">
                                                 {children.map(child => (
