@@ -5243,7 +5243,7 @@ const App = () => {
                                 </div>
                             )}
 
-                            {sidebarTab === 'layers' && (<div className="pt-2"><div className="text-[10px] font-bold text-gray-600 uppercase mb-2 px-1 flex justify-between"><span>场景对象</span><span className="bg-[#222] px-1.5 rounded text-[9px]">{filteredObjects.length}</span></div><div className="space-y-0.5">{[...filteredObjects].reverse().filter(obj => !obj.parentId).map(obj => {
+                            {sidebarTab === 'layers' && (<div className="pt-2"><div className="text-[10px] font-bold text-gray-600 uppercase mb-2 px-1 flex justify-between"><span>场景对象</span><span className="bg-[#222] px-1.5 rounded text-[9px]">{filteredObjects.filter(o => o.type !== 'group').length}</span></div><div className="space-y-0.5">{[...filteredObjects].reverse().filter(obj => !obj.parentId).map(obj => {
                                 const isGroup = obj.type === 'group';
                                 const children = isGroup ? filteredObjects.filter(child => child.parentId === obj.id) : [];
                                 return (
@@ -5252,16 +5252,30 @@ const App = () => {
                                             if (!obj.locked) {
                                                 setToolMode('select');
                                                 if (e.shiftKey) {
-                                                    // Shift+点击：切换对象的选中状态（只选中对象本身）
-                                                    const newIds = selectedIds.includes(obj.id) 
-                                                        ? selectedIds.filter(id => id !== obj.id) 
-                                                        : [...selectedIds, obj.id];
-                                                    setSelectedIds(newIds);
-                                                    setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
+                                                    if (isGroup) {
+                                                        // Shift+点击组：切换组和所有子对象的选中状态
+                                                        const groupAndChildren = [obj.id, ...children.map(c => c.id)];
+                                                        const allSelected = groupAndChildren.every(id => selectedIds.includes(id));
+                                                        const newIds = allSelected
+                                                            ? selectedIds.filter(id => !groupAndChildren.includes(id))
+                                                            : [...new Set([...selectedIds, ...groupAndChildren])];
+                                                        setSelectedIds(newIds);
+                                                        setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
+                                                    } else {
+                                                        const newIds = selectedIds.includes(obj.id) ? selectedIds.filter(id => id !== obj.id) : [...selectedIds, obj.id];
+                                                        setSelectedIds(newIds);
+                                                        setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
+                                                    }
                                                 } else {
-                                                    // 点击对象：只选中对象本身（包括组）
-                                                    setSelectedId(obj.id);
-                                                    setSelectedIds([obj.id]);
+                                                    if (isGroup) {
+                                                        // 点击组：选中组和所有子对象
+                                                        const groupAndChildren = [obj.id, ...children.map(c => c.id)];
+                                                        setSelectedIds(groupAndChildren);
+                                                        setSelectedId(obj.id);
+                                                    } else {
+                                                        setSelectedId(obj.id);
+                                                        setSelectedIds([obj.id]);
+                                                    }
                                                 }
                                             }
                                         }} onDoubleClick={(e) => {
@@ -5289,7 +5303,7 @@ const App = () => {
                                             />
                                         ) : (
                                             <span className="truncate flex-1">{obj.name}</span>
-                                        )}{isGroup && <span className="text-[9px] text-gray-600">({children.length})</span>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'locked', !obj.locked); }} className="hover:text-white p-1 rounded hover:bg-[#333]" title={obj.locked ? "解锁" : "锁定"}>{obj.locked ? <Lock size={10} /> : <Unlock size={10} />}</button>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'visible', !obj.visible); }} className="hover:text-white p-1 rounded hover:bg-[#333]">{obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}</button>}</div>
+                                        )}{isGroup && <span className="text-[9px] text-gray-600">({children.filter(c => c.type !== 'group').length})</span>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'locked', !obj.locked); }} className="hover:text-white p-1 rounded hover:bg-[#333]" title={obj.locked ? "解锁" : "锁定"}>{obj.locked ? <Lock size={10} /> : <Unlock size={10} />}</button>}{!obj.isBaseMap && <button onClick={(e) => { e.stopPropagation(); updateObject(obj.id, 'visible', !obj.visible); }} className="hover:text-white p-1 rounded hover:bg-[#333]">{obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}</button>}</div>
                                         {isGroup && children.length > 0 && (
                                             <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-700 pl-2">
                                                 {children.map(child => (
