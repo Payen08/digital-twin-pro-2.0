@@ -6360,6 +6360,42 @@ const App = () => {
                                             <span className="text-[10px]">墙体</span>
                                         </button>
                                         </div>
+                                        
+                                        {/* 自定义资产 */}
+                                        {customAssets.length > 0 && (
+                                            <>
+                                                <div className="text-[10px] text-gray-500 mt-3 mb-2">自定义资产:</div>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {customAssets.map((asset, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => {
+                                                                const newObjects = objects.map(obj => {
+                                                                    if (selectedIds.includes(obj.id)) {
+                                                                        return {
+                                                                            ...obj,
+                                                                            type: 'custom_model',
+                                                                            modelUrl: asset.modelUrl,
+                                                                            modelScale: asset.modelScale || 1,
+                                                                            name: asset.label,
+                                                                            assetId: asset.id
+                                                                        };
+                                                                    }
+                                                                    return obj;
+                                                                });
+                                                                setObjects(newObjects);
+                                                                commitHistory(newObjects);
+                                                            }}
+                                                            className="flex flex-col items-center gap-1 p-2 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                                            title={asset.label}
+                                                        >
+                                                            <Box size={16} />
+                                                            <span className="text-[9px] truncate w-full text-center">{asset.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 
