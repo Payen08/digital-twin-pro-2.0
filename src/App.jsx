@@ -1726,13 +1726,47 @@ const AssetEditModal = ({ asset, onClose, onSave, onDelete, onExport, onReplace 
                         <div>
                             <label className="text-[10px] text-gray-500 block mb-1.5">默认缩放 (Default Scale)</label>
                             <div className="flex items-center gap-2 mb-1">
-                                <input type="range" min="0.001" max="5" step="0.001" value={scale} onChange={e => setScale(parseFloat(e.target.value))} className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500" />
-                                <input type="number" value={scale} onChange={e => setScale(parseFloat(e.target.value))} className="w-16 bg-[#0f0f0f] border border-[#333] rounded px-1 py-1 text-xs text-white text-center" />
+                                <input 
+                                    type="range" 
+                                    min="0.001" 
+                                    max="5" 
+                                    step="0.001" 
+                                    value={scale} 
+                                    onChange={e => setScale(parseFloat(e.target.value))} 
+                                    className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500" 
+                                />
+                                <input 
+                                    type="number" 
+                                    min="0.001"
+                                    max="10"
+                                    step="0.01"
+                                    value={scale} 
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        // 允许清空输入框
+                                        if (val === '' || val === '-') {
+                                            setScale(0.001);
+                                        } else {
+                                            const num = parseFloat(val);
+                                            if (!isNaN(num) && num >= 0.001) {
+                                                setScale(num);
+                                            }
+                                        }
+                                    }}
+                                    onBlur={e => {
+                                        // 失去焦点时，如果为空或无效，重置为0.001
+                                        const val = parseFloat(e.target.value);
+                                        if (isNaN(val) || val < 0.001) {
+                                            setScale(0.001);
+                                        }
+                                    }}
+                                    className="w-20 bg-[#0f0f0f] border border-[#333] rounded px-2 py-1 text-xs text-white text-center focus:border-blue-500 outline-none" 
+                                />
                             </div>
                             <div className="flex w-full bg-[#1a1a1a] rounded overflow-hidden border border-[#2a2a2a]">
-                                <button onClick={() => setScale(0.001)} className="flex-1 py-1 hover:bg-[#333] text-[9px] text-gray-400 transition-colors border-r border-[#2a2a2a]">mm</button>
-                                <button onClick={() => setScale(0.01)} className="flex-1 py-1 hover:bg-[#333] text-[9px] text-gray-400 transition-colors border-r border-[#2a2a2a]">cm</button>
-                                <button onClick={() => setScale(1)} className="flex-1 py-1 hover:bg-[#333] text-[9px] text-gray-400 transition-colors">m</button>
+                                <button onClick={() => setScale(0.001)} className="flex-1 py-1.5 hover:bg-[#333] text-[10px] text-gray-400 hover:text-white transition-colors border-r border-[#2a2a2a]" title="毫米单位">mm</button>
+                                <button onClick={() => setScale(0.01)} className="flex-1 py-1.5 hover:bg-[#333] text-[10px] text-gray-400 hover:text-white transition-colors border-r border-[#2a2a2a]" title="厘米单位">cm</button>
+                                <button onClick={() => setScale(1)} className="flex-1 py-1.5 hover:bg-[#333] text-[10px] text-gray-400 hover:text-white transition-colors" title="米单位">m</button>
                             </div>
                         </div>
 
@@ -4129,11 +4163,24 @@ const App = () => {
         commitHistory(newObjects);
     };
 
-    const updateTransform = (id, type, axisIdx, value) => {
+    const updateTransform = (id, type, axisIdx, value, minValue = 0.01) => {
+        // 处理输入值：允许空字符串，但在提交时使用最小值
+        let finalValue = value;
+        if (value === '' || value === null || value === undefined) {
+            finalValue = minValue;
+        } else {
+            const num = parseFloat(value);
+            if (isNaN(num)) {
+                finalValue = minValue;
+            } else {
+                finalValue = Math.max(num, minValue);
+            }
+        }
+        
         const newObjects = objects.map(o => {
             if (o.id !== id) return o;
             const newArr = [...o[type]];
-            newArr[axisIdx] = value;
+            newArr[axisIdx] = finalValue;
             return { ...o, [type]: newArr };
         });
         commitHistory(newObjects);
