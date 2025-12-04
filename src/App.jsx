@@ -5006,64 +5006,33 @@ const App = () => {
                                                             )}
                                                         </div>
                                                         
-                                                        {/* 2. 底图（图片） */}
+                                                        {/* 2. 后端服务器地址 */}
                                                         <div>
                                                             <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
-                                                                底图 <span className="text-gray-600 font-normal">(PNG/JPG)</span>
+                                                                后端服务器地址 <span className="text-gray-600 font-normal">(可选)</span>
                                                             </label>
-                                                            <div className="flex gap-2">
-                                                                <select
-                                                                    value={floor.baseMapId || ''}
-                                                                    onChange={(e) => {
-                                                                        setFloors(prev => prev.map(scene => {
-                                                                            if (scene.id === currentFloorId) {
-                                                                                return {
-                                                                                    ...scene,
-                                                                                    floorLevels: scene.floorLevels.map(fl => 
-                                                                                        fl.id === floor.id 
-                                                                                            ? { ...fl, baseMapId: e.target.value }
-                                                                                            : fl
-                                                                                    )
-                                                                                };
-                                                                            }
-                                                                            return scene;
-                                                                        }));
-                                                                    }}
-                                                                    className="flex-1 bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-blue-500"
-                                                                >
-                                                                    <option value="">选择内置底图...</option>
-                                                                    {availableMaps.map(map => (
-                                                                        <option key={map.id} value={map.id}>
-                                                                            {map.name}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                                {floor.baseMapId && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            if (confirm('确定清除此楼层的底图吗？')) {
-                                                                                setFloors(prev => prev.map(scene => {
-                                                                                    if (scene.id === currentFloorId) {
-                                                                                        return {
-                                                                                            ...scene,
-                                                                                            floorLevels: scene.floorLevels.map(fl => 
-                                                                                                fl.id === floor.id 
-                                                                                                    ? { ...fl, baseMapData: null, baseMapId: null }
-                                                                                                    : fl
-                                                                                            )
-                                                                                        };
-                                                                                    }
-                                                                                    return scene;
-                                                                                }));
-                                                                            }
-                                                                        }}
-                                                                        className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
-                                                                        title="清除"
-                                                                    >
-                                                                        <Trash2 size={12} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                value={floor.serverUrl || ''}
+                                                                onChange={(e) => {
+                                                                    setFloors(prev => prev.map(scene => {
+                                                                        if (scene.id === currentFloorId) {
+                                                                            return {
+                                                                                ...scene,
+                                                                                floorLevels: scene.floorLevels.map(fl => 
+                                                                                    fl.id === floor.id 
+                                                                                        ? { ...fl, serverUrl: e.target.value }
+                                                                                        : fl
+                                                                                )
+                                                                            };
+                                                                        }
+                                                                        return scene;
+                                                                    }));
+                                                                }}
+                                                                placeholder="例如: http://192.168.1.100:8080"
+                                                                className="w-full bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-blue-500 placeholder-gray-600"
+                                                            />
+                                                            <p className="text-[9px] text-gray-600 mt-1">用于楼层数据源的映射关系</p>
                                                         </div>
                                                         
                                                         {/* 3. GLB底图模型（可选） */}
