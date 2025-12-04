@@ -2392,11 +2392,15 @@ const App = () => {
     }, [floors, currentFloorId]);
 
     const currentFloorLevel = useMemo(() => {
-        if (!currentScene || !currentScene.floorLevels) {
+        if (!currentScene || !currentScene.floorLevels || currentScene.floorLevels.length === 0) {
             console.warn('⚠️ 当前场景没有楼层配置');
             return null;
         }
-        const level = currentScene.floorLevels.find(fl => fl.id === currentFloorLevelId) || currentScene.floorLevels[0];
+        const level = currentScene.floorLevels.find(fl => fl.id === currentFloorLevelId);
+        if (!level) {
+            console.warn('⚠️ 未找到指定楼层，使用第一个楼层');
+            return currentScene.floorLevels[0];
+        }
         return level;
     }, [currentScene, currentFloorLevelId]);
 
