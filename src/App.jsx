@@ -5188,6 +5188,7 @@ const App = () => {
                                                                     <button
                                                                         onClick={() => {
                                                                             if (confirm('确定清除此楼层的3D模型吗？')) {
+                                                                                // 清除楼层数据中的模型
                                                                                 setFloors(prev => prev.map(scene => {
                                                                                     if (scene.id === currentFloorId) {
                                                                                         return {
@@ -5201,6 +5202,13 @@ const App = () => {
                                                                                     }
                                                                                     return scene;
                                                                                 }));
+                                                                                
+                                                                                // 🔑 同时从objects中移除模型对象
+                                                                                if (floor.id === currentFloorLevelId) {
+                                                                                    const modelId = `model_${floor.id}`;
+                                                                                    setObjects(prev => prev.filter(obj => obj.id !== modelId));
+                                                                                    console.log('🗑️ 已从场景中移除模型:', modelId);
+                                                                                }
                                                                             }
                                                                         }}
                                                                         className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
