@@ -5227,16 +5227,16 @@ const App = () => {
                                                                                 
                                                                                 console.log('  - 底图尺寸:', mapWidth, 'x', mapHeight, '米');
                                                                                 
-                                                                                // 假设GLB模型的原始尺寸是1x1单位
-                                                                                // 缩放模型以匹配底图尺寸
-                                                                                const scaleFactor = Math.max(mapWidth, mapHeight);
-                                                                                autoScale = [scaleFactor, scaleFactor, scaleFactor];
+                                                                                // 假设GLB模型已经是实际尺寸，只需要小幅缩放
+                                                                                // 使用1作为默认缩放，让模型保持原始尺寸
+                                                                                autoScale = [1, 1, 1];
                                                                                 
-                                                                                // 位置：底图的原点偏移
+                                                                                // 位置：底图中心
+                                                                                // origin是底图左下角，需要移动到中心
                                                                                 autoPosition = [
-                                                                                    mapData.origin.x,
+                                                                                    mapData.origin.x + mapWidth / 2,
                                                                                     0, // Y轴保持在地面
-                                                                                    mapData.origin.y
+                                                                                    mapData.origin.y + mapHeight / 2
                                                                                 ];
                                                                                 
                                                                                 console.log('  - 自动缩放:', autoScale);
@@ -5245,6 +5245,7 @@ const App = () => {
                                                                                 console.log('⚠️ 楼层没有底图数据，使用默认变换');
                                                                             }
                                                                             
+                                                                            // 保存模型数据到楼层
                                                                             setFloors(prev => prev.map(scene => {
                                                                                 if (scene.id === currentFloorId) {
                                                                                     return {
@@ -5267,7 +5268,31 @@ const App = () => {
                                                                                 return scene;
                                                                             }));
                                                                             
-                                                                            alert('✅ 3D模型已上传\n\n已根据底图尺寸自动调整模型的缩放和位置');
+                                                                            // 🔑 立即创建模型对象并添加到场景
+                                                                            if (floor.id === currentFloorLevelId) {
+                                                                                console.log('💡 立即添加模型到当前场景');
+                                                                                const modelObj = {
+                                                                                    id: `model_${floor.id}`,
+                                                                                    type: 'custom_model',
+                                                                                    name: file.name || '3D底图模型',
+                                                                                    isBaseMap: false,
+                                                                                    locked: false,
+                                                                                    modelUrl: url,
+                                                                                    position: autoPosition,
+                                                                                    scale: autoScale,
+                                                                                    rotation: [0, 0, 0],
+                                                                                    visible: true,
+                                                                                    opacity: 1
+                                                                                };
+                                                                                
+                                                                                // 移除旧的模型对象（如果有）
+                                                                                setObjects(prev => {
+                                                                                    const filtered = prev.filter(obj => obj.id !== modelObj.id);
+                                                                                    return [...filtered, modelObj];
+                                                                                });
+                                                                            }
+                                                                            
+                                                                            alert('✅ 3D模型已上传并显示\n\n缩放: 1:1 (原始尺寸)\n位置: 底图中心');
                                                                         };
                                                                         reader.readAsDataURL(file);
                                                                     } catch (error) {
