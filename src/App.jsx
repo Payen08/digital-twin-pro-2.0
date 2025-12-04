@@ -4004,8 +4004,8 @@ const App = () => {
                 // 🔑 保存底图数据供GLB模型使用
                 if (!baseMapDataForGLB) {
                     baseMapDataForGLB = {
-                        actualSize: { width: record.width, height: record.height },
-                        resolution: record.resolution,
+                        actualSize: { width: mapWidth, height: mapHeight }, // 保存米为单位的尺寸
+                        resolution: 1, // 已经转换为米，所以resolution是1
                         origin: record.origin
                     };
                 }
@@ -5290,7 +5290,8 @@ const App = () => {
                                                                                 const mapCenterZ = mapData.origin.y + mapHeight / 2;
                                                                                 
                                                                                 // 模型位置 = 底图中心（GLB模型原点在中心）
-                                                                                autoPosition = [mapCenterX, 0, mapCenterZ];
+                                                                                // Y轴稍微抬高一点，避免与底图重叠
+                                                                                autoPosition = [mapCenterX, 0.01, mapCenterZ];
                                                                                 
                                                                                 console.log('  - 底图原点:', [mapData.origin.x, mapData.origin.y]);
                                                                                 console.log('  - 底图中心:', [mapCenterX, mapCenterZ]);
