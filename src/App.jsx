@@ -3815,8 +3815,19 @@ const App = () => {
         console.log('📋 当前场景:', currentScene?.name);
         console.log('📋 当前楼层:', currentFloorLevel?.name);
         console.log('📋 JSON数据结构:', jsonData);
+        console.log('📋 JSON所有键:', Object.keys(jsonData));
         console.log('mapfileEntitys 数量:', jsonData.mapfileEntitys?.length || 0);
         console.log('graphTopologys 数量:', jsonData.graphTopologys?.length || 0);
+        
+        // 检查是否有数据
+        if ((!jsonData.mapfileEntitys || jsonData.mapfileEntitys.length === 0) && 
+            (!jsonData.graphTopologys || jsonData.graphTopologys.length === 0)) {
+            console.error('❌ JSON数据中没有找到地图数据！');
+            console.error('期望的字段: mapfileEntitys (底图) 或 graphTopologys (点位和路径)');
+            console.error('实际的字段:', Object.keys(jsonData));
+            alert('❌ JSON数据格式不正确\n\n未找到地图数据。请确保JSON包含以下字段之一：\n- mapfileEntitys (底图)\n- graphTopologys (点位和路径)');
+            return;
+        }
         
         if (!currentFloorLevel) {
             console.error('❌ 没有当前楼层，无法加载地图');
@@ -4947,10 +4958,10 @@ const App = () => {
                                                 {editingFloorLevelId === floor.id && (
                                                     <div className="px-3 pb-3 space-y-3 border-t border-[#2a2a2a] pt-3">
                                                         
-                                                        {/* 1. 数据源（JSON上传） */}
+                                                        {/* 1. 上传地图 */}
                                                         <div>
                                                             <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
-                                                                数据源 <span className="text-gray-600 font-normal">(JSON格式)</span>
+                                                                上传地图 <span className="text-gray-600 font-normal">(JSON格式)</span>
                                                             </label>
                                                             {floor.waypointsData || floor.pathsData ? (
                                                                 <div className="flex gap-2">
@@ -5001,7 +5012,7 @@ const App = () => {
                                                                     className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-gray-400 hover:text-white hover:bg-[#222] rounded transition-all border border-dashed border-[#333]"
                                                                 >
                                                                     <Upload size={12} />
-                                                                    <span>上传JSON数据源</span>
+                                                                    <span>上传JSON文件</span>
                                                                 </button>
                                                             )}
                                                         </div>
