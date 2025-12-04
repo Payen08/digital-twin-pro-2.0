@@ -5198,7 +5198,7 @@ const App = () => {
                                             isDefault: false,
                                             // 🏢 楼层列表：创建默认的1F楼层（空的）
                                             floorLevels: [{
-                                                id: 'floor-1',
+                                                id: `floor-${Date.now()}`, // 使用唯一ID
                                                 name: '1F',
                                                 height: 0,
                                                 visible: true,
