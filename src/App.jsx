@@ -3876,11 +3876,20 @@ const App = () => {
             const mapWidth = jsonData.actualSize.width * jsonData.resolution;
             const mapHeight = jsonData.actualSize.height * jsonData.resolution;
             
+            console.log('📐 底图尺寸:', mapWidth, 'x', mapHeight, '米');
+            console.log('📍 底图原点:', jsonData.origin);
+            
+            // 底图中心位置 = origin + (width/2, height/2)
+            const mapCenterX = jsonData.origin.x + mapWidth / 2;
+            const mapCenterZ = jsonData.origin.y + mapHeight / 2;
+            
+            console.log('📍 底图中心:', [mapCenterX, 0, mapCenterZ]);
+            
             const baseMapObj = {
                 id: `map_${jsonData.id}`,
                 type: 'map_image',
                 name: jsonData.name || '地图底图',
-                position: [0, -0.01, 0],
+                position: [mapCenterX, -0.01, mapCenterZ], // 使用底图中心位置
                 rotation: [0, 0, 0],
                 scale: [mapWidth, 1, mapHeight],
                 color: '#ffffff',
@@ -5231,13 +5240,15 @@ const App = () => {
                                                                                 // 使用1作为默认缩放，让模型保持原始尺寸
                                                                                 autoScale = [1, 1, 1];
                                                                                 
-                                                                                // 位置：底图中心
-                                                                                // origin是底图左下角，需要移动到中心
-                                                                                autoPosition = [
-                                                                                    mapData.origin.x + mapWidth / 2,
-                                                                                    0, // Y轴保持在地面
-                                                                                    mapData.origin.y + mapHeight / 2
-                                                                                ];
+                                                                                // 🔑 关键：底图中心位置
+                                                                                // origin是底图左下角，加上一半尺寸得到中心
+                                                                                const mapCenterX = mapData.origin.x + mapWidth / 2;
+                                                                                const mapCenterZ = mapData.origin.y + mapHeight / 2;
+                                                                                
+                                                                                // 模型位置 = 底图中心
+                                                                                autoPosition = [mapCenterX, 0, mapCenterZ];
+                                                                                
+                                                                                console.log('  - 底图中心:', [mapCenterX, mapCenterZ]);
                                                                                 
                                                                                 console.log('  - 自动缩放:', autoScale);
                                                                                 console.log('  - 自动位置:', autoPosition);
