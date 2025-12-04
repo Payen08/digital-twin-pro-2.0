@@ -2226,18 +2226,33 @@ function BoxSelectionIntegration({ onSelectionChange, enabled }) {
 const App = () => {
     // 本地存储键名
     const LOCAL_STORAGE_KEY = 'digital-twin-pro-data';
+    const DATA_VERSION_KEY = 'digital-twin-pro-version';
+    const CURRENT_VERSION = '2.0'; // 当前数据版本
     
     // 从本地存储加载数据
     const loadFromLocalStorage = () => {
         try {
+            // 检查数据版本
+            const savedVersion = localStorage.getItem(DATA_VERSION_KEY);
+            
+            // 如果版本不匹配，清除旧数据
+            if (savedVersion !== CURRENT_VERSION) {
+                console.log('🔄 检测到旧版本数据 (v' + (savedVersion || '1.0') + ')，清除并使用新版本 (v' + CURRENT_VERSION + ')');
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
+                localStorage.setItem(DATA_VERSION_KEY, CURRENT_VERSION);
+                return null;
+            }
+            
             const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
             if (saved) {
                 const data = JSON.parse(saved);
-                console.log('📦 从本地存储加载数据:', data);
+                console.log('📦 从本地存储加载数据 (v' + CURRENT_VERSION + '):', data);
                 return data;
             }
         } catch (error) {
             console.error('❌ 加载本地数据失败:', error);
+            // 如果加载失败，清除损坏的数据
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
         }
         return null;
     };
@@ -3078,7 +3093,8 @@ const App = () => {
                 timestamp: new Date().toISOString()
             };
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
-            console.log('💾 自动保存到本地存储');
+            localStorage.setItem(DATA_VERSION_KEY, CURRENT_VERSION); // 保存版本号
+            console.log('💾 自动保存到本地存储 (v' + CURRENT_VERSION + ')');
         } catch (error) {
             console.error('❌ 保存到本地存储失败:', error);
             // 如果保存失败（可能是因为数据太大），尝试不保存自定义资产
@@ -3093,7 +3109,8 @@ const App = () => {
                         timestamp: new Date().toISOString()
                     };
                     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
-                    console.log('💾 已保存（不包含自定义资产）');
+                    localStorage.setItem(DATA_VERSION_KEY, CURRENT_VERSION); // 保存版本号
+                    console.log('💾 已保存（不包含自定义资产，v' + CURRENT_VERSION + '）');
                 } catch (e) {
                     console.error('❌ 保存失败:', e);
                 }
