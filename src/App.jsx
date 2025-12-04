@@ -874,6 +874,8 @@ const Interactive2DObject = ({ obj, isSelected, transformMode, toolMode, onSelec
                         showX={showX}
                         showY={showY}
                         showZ={showZ}
+                        translationSnap={enableSnap ? 1 : null}
+                        rotationSnap={enableSnap ? THREE.MathUtils.degToRad(15) : null}
                     onMouseUp={() => {
                         if (groupRef.current) {
                             const { position, rotation, scale } = groupRef.current;
@@ -1417,7 +1419,7 @@ const PathLine = ({ data, isSelected, onSelect }) => {
 };
 
 // 场景对象
-const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMode, onTransformEnd, onUpdatePoints, onToggleEdit, cameraView }) => {
+const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMode, onTransformEnd, onUpdatePoints, onToggleEdit, cameraView, enableSnap }) => {
     const groupRef = useRef(); const [hovered, setHovered] = useState(false); useCursor(hovered && !isSelected && !isEditingPoints);
 
     // 调试：输出3D场景模型信息
@@ -1491,6 +1493,8 @@ const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMod
                         showX={showX}
                         showY={showY}
                         showZ={showZ}
+                        translationSnap={enableSnap ? 1 : null}
+                        rotationSnap={enableSnap ? THREE.MathUtils.degToRad(15) : null}
                         onMouseUp={() => { 
                             if (groupRef.current) { 
                                 const { position, rotation, scale } = groupRef.current; 
@@ -1583,7 +1587,7 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
 };
 
 // 多选组移动控制器 - 使用 drei TransformControls
-const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, onDragEnd, cameraView }) => {
+const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, onDragEnd, cameraView, enableSnap }) => {
     const { scene } = useThree();
     const groupRef = useRef();
     const controlsRef = useRef();
@@ -1647,6 +1651,7 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
             ref={controlsRef}
             position={center}
             mode="translate"
+            translationSnap={enableSnap ? 1 : null}
             showX={showX}
             showY={showY}
             showZ={showZ}
@@ -1924,9 +1929,9 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
             {label && <span className="pl-2 text-[9px] text-gray-500 font-bold select-none">{label}</span>}
             <input
                 ref={inputRef}
-                type="number"
+                type="text"
+                inputMode="decimal"
                 defaultValue={value}
-                step={step}
                 onBlur={handleBlur}
                 onKeyDown={(e) => {
                     e.stopPropagation();
@@ -1935,8 +1940,9 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
                     }
                 }}
                 onKeyUp={(e) => e.stopPropagation()}
+                onKeyPress={(e) => e.stopPropagation()}
                 disabled={disabled}
-                className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed"
             />
             {suffix && <span className="absolute right-3 text-[10px] text-gray-500 select-none pointer-events-none">{suffix}</span>}
         </div>
@@ -6199,6 +6205,7 @@ const App = () => {
                                     onDrag={handleDrag}
                                     onDragEnd={handleDragEnd}
                                     cameraView={cameraView}
+                                    enableSnap={enableSnap}
                                 />
                             )}
 
@@ -6333,6 +6340,7 @@ const App = () => {
                                         onUpdatePoints={updatePoints}
                                         onToggleEdit={toggleEditMode}
                                         cameraView={cameraView}
+                                        enableSnap={enableSnap}
                                     />
                                 ))}
                                 
@@ -6369,6 +6377,7 @@ const App = () => {
                                         onDrag={handleDrag}
                                         onDragEnd={handleDragEnd}
                                         cameraView={cameraView}
+                                        enableSnap={enableSnap}
                                     />
                                 );
                             })()}
