@@ -5211,6 +5211,40 @@ const App = () => {
                                                                         const reader = new FileReader();
                                                                         reader.onload = (event) => {
                                                                             const url = event.target.result;
+                                                                            
+                                                                            // 🔑 自动计算模型的缩放和位置
+                                                                            let autoScale = [1, 1, 1];
+                                                                            let autoPosition = [0, 0, 0];
+                                                                            
+                                                                            // 如果楼层有底图数据，根据底图尺寸计算
+                                                                            if (floor.baseMapData) {
+                                                                                const mapData = floor.baseMapData;
+                                                                                console.log('📐 根据底图数据自动计算模型变换:', mapData);
+                                                                                
+                                                                                // 计算底图的实际尺寸（米）
+                                                                                const mapWidth = mapData.actualSize.width * mapData.resolution;
+                                                                                const mapHeight = mapData.actualSize.height * mapData.resolution;
+                                                                                
+                                                                                console.log('  - 底图尺寸:', mapWidth, 'x', mapHeight, '米');
+                                                                                
+                                                                                // 假设GLB模型的原始尺寸是1x1单位
+                                                                                // 缩放模型以匹配底图尺寸
+                                                                                const scaleFactor = Math.max(mapWidth, mapHeight);
+                                                                                autoScale = [scaleFactor, scaleFactor, scaleFactor];
+                                                                                
+                                                                                // 位置：底图的原点偏移
+                                                                                autoPosition = [
+                                                                                    mapData.origin.x,
+                                                                                    0, // Y轴保持在地面
+                                                                                    mapData.origin.y
+                                                                                ];
+                                                                                
+                                                                                console.log('  - 自动缩放:', autoScale);
+                                                                                console.log('  - 自动位置:', autoPosition);
+                                                                            } else {
+                                                                                console.log('⚠️ 楼层没有底图数据，使用默认变换');
+                                                                            }
+                                                                            
                                                                             setFloors(prev => prev.map(scene => {
                                                                                 if (scene.id === currentFloorId) {
                                                                                     return {
@@ -5222,8 +5256,8 @@ const App = () => {
                                                                                                     sceneModelData: {
                                                                                                         fileName: file.name,
                                                                                                         url: url,
-                                                                                                        scale: [1, 1, 1],
-                                                                                                        position: [0, 0, 0]
+                                                                                                        scale: autoScale,
+                                                                                                        position: autoPosition
                                                                                                     }
                                                                                                 }
                                                                                                 : fl
@@ -5232,6 +5266,8 @@ const App = () => {
                                                                                 }
                                                                                 return scene;
                                                                             }));
+                                                                            
+                                                                            alert('✅ 3D模型已上传\n\n已根据底图尺寸自动调整模型的缩放和位置');
                                                                         };
                                                                         reader.readAsDataURL(file);
                                                                     } catch (error) {
