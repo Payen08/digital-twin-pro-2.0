@@ -4916,14 +4916,24 @@ const App = () => {
                                                         {/* 1. 数据源（JSON上传） */}
                                                         <div>
                                                             <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
-                                                                📊 数据源 <span className="text-gray-600 font-normal">(JSON格式)</span>
+                                                                数据源 <span className="text-gray-600 font-normal">(JSON格式)</span>
                                                             </label>
                                                             {floor.waypointsData || floor.pathsData ? (
-                                                                <div className="bg-green-900/20 border border-green-500/30 rounded px-2 py-1.5 flex items-center justify-between">
-                                                                    <div className="flex items-center gap-1.5">
+                                                                <div className="flex gap-2">
+                                                                    <div className="flex-1 bg-[#0e0e0e] border border-green-500/50 rounded px-2 py-1.5 flex items-center gap-1.5">
                                                                         <Check size={12} className="text-green-400" />
-                                                                        <span className="text-[10px] text-green-400">已加载数据源</span>
+                                                                        <span className="text-[10px] text-green-400">已加载</span>
                                                                     </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setCurrentFloorLevelId(floor.id);
+                                                                            document.getElementById('floor-json-upload').click();
+                                                                        }}
+                                                                        className="px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
+                                                                        title="重新上传"
+                                                                    >
+                                                                        <RefreshCw size={12} />
+                                                                    </button>
                                                                     <button
                                                                         onClick={() => {
                                                                             if (confirm('确定清除此楼层的数据源吗？')) {
@@ -4942,9 +4952,10 @@ const App = () => {
                                                                                 }));
                                                                             }
                                                                         }}
-                                                                        className="text-gray-500 hover:text-red-400"
+                                                                        className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
+                                                                        title="清除"
                                                                     >
-                                                                        <X size={12} />
+                                                                        <Trash2 size={12} />
                                                                     </button>
                                                                 </div>
                                                             ) : (
@@ -4964,14 +4975,36 @@ const App = () => {
                                                         {/* 2. 底图（图片） */}
                                                         <div>
                                                             <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
-                                                                🗺️ 底图 <span className="text-gray-600 font-normal">(PNG/JPG)</span>
+                                                                底图 <span className="text-gray-600 font-normal">(PNG/JPG)</span>
                                                             </label>
-                                                            {floor.baseMapData ? (
-                                                                <div className="bg-blue-900/20 border border-blue-500/30 rounded px-2 py-1.5 flex items-center justify-between">
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        <Check size={12} className="text-blue-400" />
-                                                                        <span className="text-[10px] text-blue-400">已设置底图</span>
-                                                                    </div>
+                                                            <div className="flex gap-2">
+                                                                <select
+                                                                    value={floor.baseMapId || ''}
+                                                                    onChange={(e) => {
+                                                                        setFloors(prev => prev.map(scene => {
+                                                                            if (scene.id === currentFloorId) {
+                                                                                return {
+                                                                                    ...scene,
+                                                                                    floorLevels: scene.floorLevels.map(fl => 
+                                                                                        fl.id === floor.id 
+                                                                                            ? { ...fl, baseMapId: e.target.value }
+                                                                                            : fl
+                                                                                    )
+                                                                                };
+                                                                            }
+                                                                            return scene;
+                                                                        }));
+                                                                    }}
+                                                                    className="flex-1 bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-blue-500"
+                                                                >
+                                                                    <option value="">选择内置底图...</option>
+                                                                    {availableMaps.map(map => (
+                                                                        <option key={map.id} value={map.id}>
+                                                                            {map.name}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                                {floor.baseMapId && (
                                                                     <button
                                                                         onClick={() => {
                                                                             if (confirm('确定清除此楼层的底图吗？')) {
@@ -4990,52 +5023,36 @@ const App = () => {
                                                                                 }));
                                                                             }
                                                                         }}
-                                                                        className="text-gray-500 hover:text-red-400"
+                                                                        className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
+                                                                        title="清除"
                                                                     >
-                                                                        <X size={12} />
+                                                                        <Trash2 size={12} />
                                                                     </button>
-                                                                </div>
-                                                            ) : (
-                                                                <select
-                                                                    value={floor.baseMapId || ''}
-                                                                    onChange={(e) => {
-                                                                        setFloors(prev => prev.map(scene => {
-                                                                            if (scene.id === currentFloorId) {
-                                                                                return {
-                                                                                    ...scene,
-                                                                                    floorLevels: scene.floorLevels.map(fl => 
-                                                                                        fl.id === floor.id 
-                                                                                            ? { ...fl, baseMapId: e.target.value }
-                                                                                            : fl
-                                                                                    )
-                                                                                };
-                                                                            }
-                                                                            return scene;
-                                                                        }));
-                                                                    }}
-                                                                    className="w-full bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-blue-500"
-                                                                >
-                                                                    <option value="">选择内置底图...</option>
-                                                                    {availableMaps.map(map => (
-                                                                        <option key={map.id} value={map.id}>
-                                                                            {map.name}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            )}
+                                                                )}
+                                                            </div>
                                                         </div>
                                                         
                                                         {/* 3. GLB底图模型（可选） */}
                                                         <div>
                                                             <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
-                                                                🏗️ 3D底图模型 <span className="text-gray-600 font-normal">(GLB/GLTF，可选)</span>
+                                                                3D底图模型 <span className="text-gray-600 font-normal">(GLB/GLTF，可选)</span>
                                                             </label>
                                                             {floor.sceneModelData ? (
-                                                                <div className="bg-purple-900/20 border border-purple-500/30 rounded px-2 py-1.5 flex items-center justify-between">
-                                                                    <div className="flex items-center gap-1.5">
+                                                                <div className="flex gap-2">
+                                                                    <div className="flex-1 bg-[#0e0e0e] border border-purple-500/50 rounded px-2 py-1.5 flex items-center gap-1.5">
                                                                         <Check size={12} className="text-purple-400" />
-                                                                        <span className="text-[10px] text-purple-400">已加载3D模型</span>
+                                                                        <span className="text-[10px] text-purple-400">已加载</span>
                                                                     </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setCurrentFloorLevelId(floor.id);
+                                                                            document.getElementById(`floor-glb-upload-${floor.id}`).click();
+                                                                        }}
+                                                                        className="px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
+                                                                        title="重新上传"
+                                                                    >
+                                                                        <RefreshCw size={12} />
+                                                                    </button>
                                                                     <button
                                                                         onClick={() => {
                                                                             if (confirm('确定清除此楼层的3D模型吗？')) {
@@ -5054,9 +5071,10 @@ const App = () => {
                                                                                 }));
                                                                             }
                                                                         }}
-                                                                        className="text-gray-500 hover:text-red-400"
+                                                                        className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
+                                                                        title="清除"
                                                                     >
-                                                                        <X size={12} />
+                                                                        <Trash2 size={12} />
                                                                     </button>
                                                                 </div>
                                                             ) : (
