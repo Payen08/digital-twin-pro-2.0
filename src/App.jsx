@@ -5260,21 +5260,28 @@ const App = () => {
                                             });
 
                                             // 5. 创建新场景（包含楼层信息）
+                                            // 🔑 重要：新架构下，场景不再直接包含objects
+                                            // 而是每个楼层独立包含自己的objects
                                             const newFloor = {
                                                 id: uuidv4(),
                                                 name: sceneName,
                                                 description: `包含 ${newEntities.length} 个点位${sceneModelObj ? ' + 3D模型' : ''}`,
                                                 mapPath: mapPath,
                                                 isDefault: false,
-                                                objects: finalObjects, // 保存对象数据
-                                                baseMapData: baseMap,   // 保存底图数据
-                                                entitiesData: newEntities,  // 保存点位数据
-                                                pathsData: newPaths,     // 保存路径数据
-                                                sceneModelData: sceneModelObj, // 保存3D模型数据
-                                                // 🏢 新增：楼层列表
-                                                floorLevels: parsedFloors && parsedFloors.length > 0
-                                                    ? parsedFloors
-                                                    : [{ id: 'floor-1', name: '1F', height: 0, visible: true, objects: [] }]
+                                                // 🏢 楼层列表：创建默认的1F楼层，并将所有对象放入其中
+                                                floorLevels: [{
+                                                    id: 'floor-1',
+                                                    name: '1F',
+                                                    height: 0,
+                                                    visible: true,
+                                                    // 将所有对象、底图、点位、路径数据都放到1F楼层中
+                                                    objects: finalObjects,
+                                                    baseMapData: baseMap,
+                                                    baseMapId: null,
+                                                    waypointsData: newEntities,
+                                                    pathsData: newPaths,
+                                                    sceneModelData: sceneModelObj
+                                                }]
                                             };
 
                                             console.log('📦 新场景数据:', {
