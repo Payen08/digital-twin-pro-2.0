@@ -3022,12 +3022,16 @@ const App = () => {
                 isBaseMap: true, // 标记为底图，防止被删除
                 locked: true, // 🔒 锁定模型，不允许修改
                 modelUrl: currentFloorLevel.sceneModelData.url,
+                modelScale: 1, // 添加modelScale字段
                 position: currentFloorLevel.sceneModelData.position || [0, 0, 0],
                 scale: currentFloorLevel.sceneModelData.scale || [1, 1, 1],
                 rotation: [0, 0, 0],
                 visible: true,
-                opacity: 1
+                opacity: 1,
+                color: '#ffffff' // 添加默认颜色
             };
+            
+            console.log('🏗️ 从楼层数据创建模型对象:', modelObj);
             
             // 检查是否已经有这个模型对象
             const hasModel = validObjects.some(obj => obj.id === modelObj.id);
@@ -5289,12 +5293,16 @@ const App = () => {
                                                                                     isBaseMap: true, // 标记为底图
                                                                                     locked: true, // 🔒 锁定，不允许修改
                                                                                     modelUrl: url,
+                                                                                    modelScale: 1, // 添加modelScale字段
                                                                                     position: autoPosition,
                                                                                     scale: autoScale,
                                                                                     rotation: [0, 0, 0],
                                                                                     visible: true,
-                                                                                    opacity: 1
+                                                                                    opacity: 1,
+                                                                                    color: '#ffffff' // 添加默认颜色
                                                                                 };
+                                                                                
+                                                                                console.log('🏗️ 创建的模型对象:', modelObj);
                                                                                 
                                                                                 // 移除旧的模型对象（如果有）
                                                                                 setObjects(prev => {
