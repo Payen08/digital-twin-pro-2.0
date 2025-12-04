@@ -2546,8 +2546,8 @@ const App = () => {
         setHasUnsavedChanges(false);
     }, []);
 
-    const selectedObject = objects.find(o => o.id === selectedId);
-    const filteredObjects = objects.filter(obj => (obj.name && obj.name.toLowerCase().includes(searchQuery.toLowerCase())) || (obj.type && obj.type.toLowerCase().includes(searchQuery.toLowerCase())));
+    const selectedObject = objects.find(o => o && o.id === selectedId);
+    const filteredObjects = objects.filter(obj => obj && ((obj.name && obj.name.toLowerCase().includes(searchQuery.toLowerCase())) || (obj.type && obj.type.toLowerCase().includes(searchQuery.toLowerCase()))));
     const defaultAssets = [
         { type: 'wall', label: '标准墙体', icon: BrickWall, category: '建筑' },
         { type: 'door', label: '标准门', icon: DoorOpen, category: '建筑' },
@@ -2988,9 +2988,11 @@ const App = () => {
         
         // 加载当前楼层的对象
         if (currentFloorLevel.objects && currentFloorLevel.objects.length > 0) {
-            console.log('✅ 从楼层恢复对象:', currentFloorLevel.objects.length);
-            setObjects(currentFloorLevel.objects);
-            setHistory([currentFloorLevel.objects]);
+            // 过滤掉null和undefined
+            const validObjects = currentFloorLevel.objects.filter(obj => obj != null);
+            console.log('✅ 从楼层恢复对象:', validObjects.length, '(原始:', currentFloorLevel.objects.length, ')');
+            setObjects(validObjects);
+            setHistory([validObjects]);
             setHistoryIndex(0);
         } else {
             console.log('📭 当前楼层没有对象，清空场景');
