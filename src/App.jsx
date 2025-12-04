@@ -2945,23 +2945,12 @@ const App = () => {
 
         console.log('🔄 切换到场景:', floor.name);
         
-        // 自动设置当前楼层为该场景的第一个楼层
+        // 自动设置当前楼层为该场景的第一个楼层（只设置ID，不加载对象）
+        // 对象加载由楼层切换的useEffect处理
         if (floor.floorLevels && floor.floorLevels.length > 0) {
             const firstFloor = floor.floorLevels[0];
+            console.log('📍 设置当前楼层为:', firstFloor.name);
             setCurrentFloorLevelId(firstFloor.id);
-            
-            // 加载第一个楼层的对象
-            if (firstFloor.objects && firstFloor.objects.length > 0) {
-                console.log('✅ 从第一个楼层恢复对象:', firstFloor.objects.length);
-                setObjects(firstFloor.objects);
-                setHistory([firstFloor.objects]);
-                setHistoryIndex(0);
-            } else {
-                console.log('📭 第一个楼层没有对象');
-                setObjects([]);
-                setHistory([[]]);
-                setHistoryIndex(0);
-            }
         }
     }, [currentFloorId, floors]);
     
