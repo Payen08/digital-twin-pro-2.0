@@ -2330,12 +2330,22 @@ const App = () => {
                 id: 'default',
                 name: '默认场景',
                 description: '默认场景',
-                baseMapId: null,
-                objects: [],
                 isDefault: true,
-                // 楼层列表
+                // 楼层列表 - 每个楼层有自己的地图和对象
                 floorLevels: [
-                    { id: 'floor-1', name: '1F', height: 0, visible: true, objects: [] }
+                    { 
+                        id: 'floor-1', 
+                        name: '1F', 
+                        height: 0, 
+                        visible: true, 
+                        objects: [],
+                        // 地图相关数据（每个楼层独立）
+                        baseMapId: null,
+                        baseMapData: null,
+                        waypointsData: null,
+                        pathsData: null,
+                        sceneModelData: null
+                    }
                 ]
             }
         ];
@@ -2398,7 +2408,13 @@ const App = () => {
             name: name || `${floorNumber}F`,
             height: (floorNumber - 1) * 3, // 每层默认3米高
             visible: true,
-            objects: []
+            objects: [],
+            // 地图相关数据（每个楼层独立）
+            baseMapId: null,
+            baseMapData: null,
+            waypointsData: null,
+            pathsData: null,
+            sceneModelData: null
         };
 
         setFloors(prev => prev.map(scene => {
@@ -2930,143 +2946,80 @@ const App = () => {
         
         // 自动设置当前楼层为该场景的第一个楼层
         if (floor.floorLevels && floor.floorLevels.length > 0) {
-            setCurrentFloorLevelId(floor.floorLevels[0].id);
-        }
-
-        // 如果场景有保存的对象数据，直接恢复（包括默认场景）
-        if (floor.objects && floor.objects.length > 0) {
-            console.log('✅ 从场景数据恢复对象:', floor.objects.length);
+            const firstFloor = floor.floorLevels[0];
+            setCurrentFloorLevelId(firstFloor.id);
             
-            // 🔧 自动迁移：将未分组的点位和路径打包成组
-            const waypoints = floor.objects.filter(o => o.type === 'waypoint' && !o.parentId);
-            const paths = floor.objects.filter(o => o.type === 'path_line' && !o.parentId);
-            const networkObjects = [...waypoints, ...paths];
-            
-            if (networkObjects.length > 0) {
-                console.log('🔧 检测到未分组的路网元素:', {
-                    waypoints: waypoints.length,
-                    paths: paths.length,
-                    total: networkObjects.length
-                });
-                
-                // 检查是否已经有"场景路网"组
-                const existingGroup = floor.objects.find(o => o.type === 'group' && o.name === '场景路网');
-                
-                if (!existingGroup) {
-                    console.log('📦 自动创建"场景路网"组...');
-                    
-                    // 计算中心位置
-                    let sumX = 0, sumZ = 0;
-                    networkObjects.forEach(obj => {
-                        sumX += obj.position[0];
-                        sumZ += obj.position[2];
-                    });
-                    const centerX = sumX / networkObjects.length;
-                    const centerZ = sumZ / networkObjects.length;
-                    
-                    // 创建组对象
-                    const groupId = uuidv4();
-                    const sceneGroup = {
-                        id: groupId,
-                        type: 'group',
-                        name: '场景路网',
-                        position: [centerX, 0, centerZ],
-                        rotation: [0, 0, 0],
-                        scale: [1, 1, 1],
-                        children: networkObjects.map(o => o.id),
-                        color: '#888888',
-                        opacity: 1,
-                        visible: true,
-                        locked: false
-                    };
-                    
-                    // 更新所有路网对象，设置parentId和relativePosition
-                    const migratedObjects = floor.objects.map(obj => {
-                        if (networkObjects.find(n => n.id === obj.id)) {
-                            return {
-                                ...obj,
-                                parentId: groupId,
-                                relativePosition: [
-                                    obj.position[0] - centerX,
-                                    obj.position[1] - 0,
-                                    obj.position[2] - centerZ
-                                ]
-                            };
-                        }
-                        return obj;
-                    });
-                    
-                    // 添加组对象
-                    migratedObjects.push(sceneGroup);
-                    
-                    console.log('✅ 自动迁移完成！已创建"场景路网"组，包含', networkObjects.length, '个对象');
-                    
-                    // 更新场景数据
-                    floor.objects = migratedObjects;
-                    
-                    // 保存到localStorage
-                    const updatedFloors = floors.map(f => f.id === floor.id ? floor : f);
-                    setFloors(updatedFloors);
-                    localStorage.setItem('digitalTwinFloors', JSON.stringify(updatedFloors));
-                }
+            // 加载第一个楼层的对象
+            if (firstFloor.objects && firstFloor.objects.length > 0) {
+                console.log('✅ 从第一个楼层恢复对象:', firstFloor.objects.length);
+                setObjects(firstFloor.objects);
+                setHistory([firstFloor.objects]);
+                setHistoryIndex(0);
+            } else {
+                console.log('📭 第一个楼层没有对象');
+                setObjects([]);
+                setHistory([[]]);
+                setHistoryIndex(0);
             }
-            
-            console.log('📋 对象列表:', floor.objects.map(o => ({
-                type: o.type,
-                name: o.name,
-                visible: o.visible,
-                modelUrl: o.modelUrl
-            })));
-            setObjects(floor.objects);
-            setHistory([floor.objects]);
-            setHistoryIndex(0);
-            return;
         }
-
-        // 如果是默认场景且没有保存的对象，跳过加载
-        if (floor.isDefault) {
-            console.log('⏭️ 默认场景无保存数据，保持当前对象');
-            return;
-        }
-
-        // 否则尝试从缓存中获取地图数据
-        const cached = floorDataCache[floor.mapPath || currentMapPath];
-        if (cached) {
-            console.log('✅ 从缓存加载场景数据');
-            loadFloorObjects(floor, cached.mapDataMap, cached.rawData, false);
-        } else {
-            console.warn('⚠️ 场景没有数据，显示空场景');
-            setObjects([initialObjects[0]]);  // 只显示地面
-        }
-    }, [currentFloorId, floorDataCache]); // 当场景ID变化时执行
-
-    // 自动保存当前场景的对象数据
+    }, [currentFloorId, floors]);
+    
+    // 🔑 新增：切换楼层时加载对应楼层的对象
     useEffect(() => {
-        if (!currentFloorId || floors.length === 0) return;
+        if (!currentFloorLevel) return;
+        
+        console.log('🏢 切换到楼层:', currentFloorLevel.name);
+        
+        // 加载当前楼层的对象
+        if (currentFloorLevel.objects && currentFloorLevel.objects.length > 0) {
+            console.log('✅ 从楼层恢复对象:', currentFloorLevel.objects.length);
+            setObjects(currentFloorLevel.objects);
+            setHistory([currentFloorLevel.objects]);
+            setHistoryIndex(0);
+        } else {
+            console.log('📭 当前楼层没有对象');
+            setObjects([]);
+            setHistory([[]]);
+            setHistoryIndex(0);
+        }
+    }, [currentFloorLevelId]);
+    
+
+    // 🔑 修改：自动保存当前楼层的对象数据
+    useEffect(() => {
+        if (!currentFloorId || !currentFloorLevelId || floors.length === 0) return;
 
         const floor = floors.find(f => f.id === currentFloorId);
         if (!floor) return;
+        
+        const currentFloor = floor.floorLevels?.find(fl => fl.id === currentFloorLevelId);
+        if (!currentFloor) return;
 
-        // 更新当前场景的对象数据（包括默认场景）
-        const updatedFloors = floors.map(f => {
-            if (f.id === currentFloorId) {
-                const waypointCount = objects.filter(o => o.type === 'waypoint').length;
-                const hasSceneModel = objects.some(o => o.type === 'custom_model' && o.name === '3D场景模型');
+        // 更新当前楼层的对象数据
+        const updatedFloors = floors.map(scene => {
+            if (scene.id === currentFloorId) {
                 return {
-                    ...f,
-                    objects: objects,
-                    description: f.isDefault ? '默认场景' : `包含 ${waypointCount} 个点位${hasSceneModel ? ' + 3D模型' : ''}`
+                    ...scene,
+                    floorLevels: scene.floorLevels.map(fl => {
+                        if (fl.id === currentFloorLevelId) {
+                            return {
+                                ...fl,
+                                objects: objects
+                            };
+                        }
+                        return fl;
+                    })
                 };
             }
-            return f;
+            return scene;
         });
 
         // 只在对象真正变化时更新
-        if (JSON.stringify(floor.objects) !== JSON.stringify(objects)) {
-            console.log('💾 自动保存场景数据:', currentFloorId, '对象数量:', objects.length);
+        if (JSON.stringify(currentFloor.objects) !== JSON.stringify(objects)) {
+            console.log('💾 自动保存楼层数据:', currentFloorLevel?.name, '对象数量:', objects.length);
             setFloors(updatedFloors);
         }
-    }, [objects, currentFloorId]); // 当对象或场景ID变化时执行
+    }, [objects, currentFloorId, currentFloorLevelId]); // 当对象或楼层ID变化时执行
 
     const commitHistory = useCallback((newObjects) => { setObjects(newObjects); const newHistory = history.slice(0, historyIndex + 1); newHistory.push(newObjects); if (newHistory.length > 50) newHistory.shift(); setHistory(newHistory); setHistoryIndex(newHistory.length - 1); }, [history, historyIndex]);
     const undo = useCallback(() => { if (historyIndex > 0) { const newIndex = historyIndex - 1; setHistoryIndex(newIndex); setObjects(history[newIndex]); } }, [history, historyIndex]);
@@ -3821,19 +3774,27 @@ const App = () => {
         alert(`✅ 已将 ${replaceableIds.length} 个对象替换为"${assetLabel}"模型`);
     };
 
-    // 从JSON加载地图数据
+    // 从JSON加载地图数据 - 加载到当前楼层
     const loadMapFromJSON = (jsonData) => {
-        console.log('🚀 ========== 开始加载地图数据 ==========');
+        console.log('🚀 ========== 开始加载地图数据到当前楼层 ==========');
+        console.log('📋 当前场景:', currentScene?.name);
+        console.log('📋 当前楼层:', currentFloorLevel?.name);
         console.log('📋 JSON数据结构:', jsonData);
         console.log('mapfileEntitys 数量:', jsonData.mapfileEntitys?.length || 0);
         console.log('graphTopologys 数量:', jsonData.graphTopologys?.length || 0);
+        
+        if (!currentFloorLevel) {
+            console.error('❌ 没有当前楼层，无法加载地图');
+            alert('错误：没有当前楼层');
+            return;
+        }
         
         if (jsonData.graphTopologys && jsonData.graphTopologys.length > 0) {
             console.log('📍 第一个topology的poses数量:', jsonData.graphTopologys[0].poses?.length || 0);
             console.log('🛤️ 第一个topology的paths数量:', jsonData.graphTopologys[0].paths?.length || 0);
         }
 
-        const newObjects = [...objects];
+        const newObjects = [];
         const networkObjectIds = []; // 记录点位和路径的ID
         console.log('📦 当前对象数量:', objects.length);
 
@@ -3995,7 +3956,6 @@ const App = () => {
             });
         });
         
-        commitHistory(newObjects);
         console.log('  - Waypoint点位:', newObjects.filter(o => o.type === 'waypoint').length);
         console.log('  - 路径线:', newObjects.filter(o => o.type === 'path_line').length);
 
@@ -4011,6 +3971,34 @@ const App = () => {
                 imageDataPrefix: mapObj.imageData?.substring(0, 50)
             });
         }
+        
+        // 🔑 关键改动：将对象保存到当前楼层，而不是全局objects
+        setFloors(prev => prev.map(scene => {
+            if (scene.id === currentFloorId) {
+                return {
+                    ...scene,
+                    floorLevels: scene.floorLevels.map(floor => {
+                        if (floor.id === currentFloorLevelId) {
+                            console.log(`💾 将 ${newObjects.length} 个对象保存到楼层: ${floor.name}`);
+                            return {
+                                ...floor,
+                                objects: newObjects,
+                                baseMapData: jsonData.mapfileEntitys?.[0] || null,
+                                waypointsData: jsonData.graphTopologys?.[0]?.poses || null,
+                                pathsData: jsonData.graphTopologys?.[0]?.paths || null
+                            };
+                        }
+                        return floor;
+                    })
+                };
+            }
+            return scene;
+        }));
+        
+        // 同时更新当前显示的objects
+        setObjects(newObjects);
+        
+        console.log('✅ 地图数据已保存到当前楼层');
     };
 
     // Helper to create a new point object
