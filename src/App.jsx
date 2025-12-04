@@ -2967,9 +2967,12 @@ const App = () => {
     
     // 🔑 新增：切换楼层时加载对应楼层的对象
     useEffect(() => {
-        if (!currentFloorLevel) return;
+        if (!currentFloorLevel) {
+            console.log('⚠️ currentFloorLevel 为空');
+            return;
+        }
         
-        console.log('🏢 切换到楼层:', currentFloorLevel.name);
+        console.log('🏢 切换到楼层:', currentFloorLevel.name, '| ID:', currentFloorLevel.id);
         
         // 加载当前楼层的对象
         if (currentFloorLevel.objects && currentFloorLevel.objects.length > 0) {
@@ -2978,12 +2981,12 @@ const App = () => {
             setHistory([currentFloorLevel.objects]);
             setHistoryIndex(0);
         } else {
-            console.log('📭 当前楼层没有对象');
+            console.log('📭 当前楼层没有对象，清空场景');
             setObjects([]);
             setHistory([[]]);
             setHistoryIndex(0);
         }
-    }, [currentFloorLevelId]);
+    }, [currentFloorLevel]); // 依赖currentFloorLevel而不是currentFloorLevelId
     
 
     // 🔑 修改：自动保存当前楼层的对象数据
