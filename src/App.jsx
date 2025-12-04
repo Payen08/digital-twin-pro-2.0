@@ -4912,57 +4912,223 @@ const App = () => {
                                                 {/* 楼层地图设置（可展开） */}
                                                 {editingFloorLevelId === floor.id && (
                                                     <div className="px-3 pb-3 space-y-3 border-t border-[#2a2a2a] pt-3">
-                                                        <div className="text-[10px] text-gray-500 mb-2">为此楼层设置独立的地图数据</div>
                                                         
-                                                        {/* 底图选择 */}
+                                                        {/* 1. 数据源（JSON上传） */}
                                                         <div>
-                                                            <label className="block text-[10px] text-gray-400 mb-1">底图选择</label>
-                                                            <select
-                                                                value={floor.baseMapId || ''}
-                                                                onChange={(e) => {
-                                                                    // 更新楼层的baseMapId
-                                                                    setFloors(prev => prev.map(scene => {
-                                                                        if (scene.id === currentFloorId) {
-                                                                            return {
-                                                                                ...scene,
-                                                                                floorLevels: scene.floorLevels.map(fl => 
-                                                                                    fl.id === floor.id 
-                                                                                        ? { ...fl, baseMapId: e.target.value }
-                                                                                        : fl
-                                                                                )
-                                                                            };
-                                                                        }
-                                                                        return scene;
-                                                                    }));
-                                                                }}
-                                                                className="w-full bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500"
-                                                            >
-                                                                <option value="">未选择</option>
-                                                                {availableMaps.map(map => (
-                                                                    <option key={map.id} value={map.id}>
-                                                                        {map.name}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
+                                                            <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
+                                                                📊 数据源 <span className="text-gray-600 font-normal">(JSON格式)</span>
+                                                            </label>
+                                                            {floor.waypointsData || floor.pathsData ? (
+                                                                <div className="bg-green-900/20 border border-green-500/30 rounded px-2 py-1.5 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <Check size={12} className="text-green-400" />
+                                                                        <span className="text-[10px] text-green-400">已加载数据源</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (confirm('确定清除此楼层的数据源吗？')) {
+                                                                                setFloors(prev => prev.map(scene => {
+                                                                                    if (scene.id === currentFloorId) {
+                                                                                        return {
+                                                                                            ...scene,
+                                                                                            floorLevels: scene.floorLevels.map(fl => 
+                                                                                                fl.id === floor.id 
+                                                                                                    ? { ...fl, waypointsData: null, pathsData: null, objects: [] }
+                                                                                                    : fl
+                                                                                            )
+                                                                                        };
+                                                                                    }
+                                                                                    return scene;
+                                                                                }));
+                                                                            }
+                                                                        }}
+                                                                        className="text-gray-500 hover:text-red-400"
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setCurrentFloorLevelId(floor.id);
+                                                                        document.getElementById('floor-json-upload').click();
+                                                                    }}
+                                                                    className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-gray-400 hover:text-white hover:bg-[#222] rounded transition-all border border-dashed border-[#333]"
+                                                                >
+                                                                    <Upload size={12} />
+                                                                    <span>上传JSON数据源</span>
+                                                                </button>
+                                                            )}
                                                         </div>
                                                         
-                                                        {/* 加载地图按钮 */}
-                                                        <button
-                                                            onClick={() => {
-                                                                // 切换到这个楼层
-                                                                setCurrentFloorLevelId(floor.id);
-                                                                // 打开地图选择器
-                                                                setShowMapSelector(true);
-                                                            }}
-                                                            className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
-                                                        >
-                                                            <Upload size={12} />
-                                                            <span>加载地图到此楼层</span>
-                                                        </button>
+                                                        {/* 2. 底图（图片） */}
+                                                        <div>
+                                                            <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
+                                                                🗺️ 底图 <span className="text-gray-600 font-normal">(PNG/JPG)</span>
+                                                            </label>
+                                                            {floor.baseMapData ? (
+                                                                <div className="bg-blue-900/20 border border-blue-500/30 rounded px-2 py-1.5 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <Check size={12} className="text-blue-400" />
+                                                                        <span className="text-[10px] text-blue-400">已设置底图</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (confirm('确定清除此楼层的底图吗？')) {
+                                                                                setFloors(prev => prev.map(scene => {
+                                                                                    if (scene.id === currentFloorId) {
+                                                                                        return {
+                                                                                            ...scene,
+                                                                                            floorLevels: scene.floorLevels.map(fl => 
+                                                                                                fl.id === floor.id 
+                                                                                                    ? { ...fl, baseMapData: null, baseMapId: null }
+                                                                                                    : fl
+                                                                                            )
+                                                                                        };
+                                                                                    }
+                                                                                    return scene;
+                                                                                }));
+                                                                            }
+                                                                        }}
+                                                                        className="text-gray-500 hover:text-red-400"
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <select
+                                                                    value={floor.baseMapId || ''}
+                                                                    onChange={(e) => {
+                                                                        setFloors(prev => prev.map(scene => {
+                                                                            if (scene.id === currentFloorId) {
+                                                                                return {
+                                                                                    ...scene,
+                                                                                    floorLevels: scene.floorLevels.map(fl => 
+                                                                                        fl.id === floor.id 
+                                                                                            ? { ...fl, baseMapId: e.target.value }
+                                                                                            : fl
+                                                                                    )
+                                                                                };
+                                                                            }
+                                                                            return scene;
+                                                                        }));
+                                                                    }}
+                                                                    className="w-full bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-blue-500"
+                                                                >
+                                                                    <option value="">选择内置底图...</option>
+                                                                    {availableMaps.map(map => (
+                                                                        <option key={map.id} value={map.id}>
+                                                                            {map.name}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            )}
+                                                        </div>
                                                         
-                                                        {/* 对象统计 */}
-                                                        <div className="text-[10px] text-gray-500">
-                                                            对象数量: {floor.objects?.length || 0}
+                                                        {/* 3. GLB底图模型（可选） */}
+                                                        <div>
+                                                            <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
+                                                                🏗️ 3D底图模型 <span className="text-gray-600 font-normal">(GLB/GLTF，可选)</span>
+                                                            </label>
+                                                            {floor.sceneModelData ? (
+                                                                <div className="bg-purple-900/20 border border-purple-500/30 rounded px-2 py-1.5 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <Check size={12} className="text-purple-400" />
+                                                                        <span className="text-[10px] text-purple-400">已加载3D模型</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (confirm('确定清除此楼层的3D模型吗？')) {
+                                                                                setFloors(prev => prev.map(scene => {
+                                                                                    if (scene.id === currentFloorId) {
+                                                                                        return {
+                                                                                            ...scene,
+                                                                                            floorLevels: scene.floorLevels.map(fl => 
+                                                                                                fl.id === floor.id 
+                                                                                                    ? { ...fl, sceneModelData: null }
+                                                                                                    : fl
+                                                                                            )
+                                                                                        };
+                                                                                    }
+                                                                                    return scene;
+                                                                                }));
+                                                                            }
+                                                                        }}
+                                                                        className="text-gray-500 hover:text-red-400"
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setCurrentFloorLevelId(floor.id);
+                                                                        document.getElementById(`floor-glb-upload-${floor.id}`).click();
+                                                                    }}
+                                                                    className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-gray-400 hover:text-white hover:bg-[#222] rounded transition-all border border-dashed border-[#333]"
+                                                                >
+                                                                    <Upload size={12} />
+                                                                    <span>上传GLB模型</span>
+                                                                </button>
+                                                            )}
+                                                            <input
+                                                                id={`floor-glb-upload-${floor.id}`}
+                                                                type="file"
+                                                                className="hidden"
+                                                                accept=".glb,.gltf"
+                                                                onChange={async (e) => {
+                                                                    const file = e.target.files[0];
+                                                                    if (!file) return;
+                                                                    
+                                                                    if (file.size > 50 * 1024 * 1024) {
+                                                                        alert('文件过大！请选择小于 50MB 的模型文件。');
+                                                                        e.target.value = '';
+                                                                        return;
+                                                                    }
+                                                                    
+                                                                    try {
+                                                                        // 读取文件为base64
+                                                                        const reader = new FileReader();
+                                                                        reader.onload = (event) => {
+                                                                            const url = event.target.result;
+                                                                            setFloors(prev => prev.map(scene => {
+                                                                                if (scene.id === currentFloorId) {
+                                                                                    return {
+                                                                                        ...scene,
+                                                                                        floorLevels: scene.floorLevels.map(fl => 
+                                                                                            fl.id === floor.id 
+                                                                                                ? { 
+                                                                                                    ...fl, 
+                                                                                                    sceneModelData: {
+                                                                                                        fileName: file.name,
+                                                                                                        url: url,
+                                                                                                        scale: [1, 1, 1],
+                                                                                                        position: [0, 0, 0]
+                                                                                                    }
+                                                                                                }
+                                                                                                : fl
+                                                                                        )
+                                                                                    };
+                                                                                }
+                                                                                return scene;
+                                                                            }));
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    } catch (error) {
+                                                                        console.error('模型加载失败:', error);
+                                                                        alert('模型加载失败: ' + error.message);
+                                                                    } finally {
+                                                                        e.target.value = '';
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        
+                                                        {/* 统计信息 */}
+                                                        <div className="pt-2 border-t border-[#2a2a2a] text-[10px] text-gray-500 space-y-0.5">
+                                                            <div>对象数量: {floor.objects?.length || 0}</div>
+                                                            {floor.waypointsData && <div className="text-green-400">✓ 点位: {floor.waypointsData.length}</div>}
+                                                            {floor.pathsData && <div className="text-green-400">✓ 路径: {floor.pathsData.length}</div>}
                                                         </div>
                                                     </div>
                                                 )}
@@ -5288,6 +5454,35 @@ const App = () => {
                     </div>
                 </div>
             )}
+            
+            {/* 楼层JSON数据上传 */}
+            <input
+                id="floor-json-upload"
+                type="file"
+                className="hidden"
+                accept=".json"
+                onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    try {
+                        const text = await file.text();
+                        const jsonData = JSON.parse(text);
+                        
+                        console.log('📤 上传JSON到楼层:', currentFloorLevel?.name);
+                        
+                        // 调用loadMapFromJSON，它会自动保存到当前楼层
+                        loadMapFromJSON(jsonData);
+                        
+                        alert('✅ 数据源加载成功！');
+                    } catch (error) {
+                        console.error('JSON解析失败:', error);
+                        alert('JSON文件解析失败: ' + error.message);
+                    } finally {
+                        e.target.value = '';
+                    }
+                }}
+            />
 
             {/* 默认场景覆盖确认对话框 */}
             {showOverwriteConfirmDialog && pendingNewSceneData && (
