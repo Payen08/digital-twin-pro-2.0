@@ -5206,7 +5206,7 @@ const App = () => {
                                                 name: '1F',
                                                 height: 0,
                                                 visible: true,
-                                                objects: [initialObjects[0]], // 只包含地板
+                                                objects: [], // 空数组，不包含任何对象
                                                 baseMapData: null,
                                                 baseMapId: null,
                                                 waypointsData: null,
