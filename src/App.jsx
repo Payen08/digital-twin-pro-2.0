@@ -5184,303 +5184,74 @@ const App = () => {
                                     if (editingFloor.isNew) {
                                         // -------------------------------------------
                                         // 分支 A: 新增场景 (New Scene)
+                                        // 🔑 新逻辑：只创建空场景，不加载任何数据
                                         // -------------------------------------------
-                                        const mapPath = editingFloor.mapPath;
                                         const sceneName = editingFloor.name; // 获取用户输入的场景名
-                                        const sceneModelConfig = editingFloor.sceneModelConfig; // 3D模型配置
 
-                                        console.log('🚀 [分支1] 执行新增场景逻辑:', sceneName);
+                                        console.log('🚀 [新增场景] 创建空场景:', sceneName);
 
-                                        try {
-                                            // 1. 获取数据
-                                            const response = await fetch(mapPath);
-                                            const jsonData = await response.json();
+                                        // 创建新场景，只包含一个空的1F楼层
+                                        const newFloor = {
+                                            id: uuidv4(),
+                                            name: sceneName,
+                                            description: '空场景',
+                                            isDefault: false,
+                                            // 🏢 楼层列表：创建默认的1F楼层（空的）
+                                            floorLevels: [{
+                                                id: 'floor-1',
+                                                name: '1F',
+                                                height: 0,
+                                                visible: true,
+                                                objects: [initialObjects[0]], // 只包含地板
+                                                baseMapData: null,
+                                                baseMapId: null,
+                                                waypointsData: null,
+                                                pathsData: null,
+                                                sceneModelData: null
+                                            }]
+                                        };
 
-                                            // 2. 解析地图数据（包含楼层信息）
-                                            console.log('🎯 [App] 准备调用 parseFullMapJson');
-                                            const result = parseFullMapJson(jsonData);
-                                            console.log('🎯 [App] parseFullMapJson 返回:', result);
-                                            const { baseMap, entities: newEntities, paths: newPaths, floorLevels: parsedFloors } = result;
-
-                                            console.log('📍 解析结果:', {
-                                                hasBaseMap: !!baseMap,
-                                                baseMapName: baseMap?.name,
-                                                baseMapImageData: baseMap?.imageData?.substring(0, 50) + '...',
-                                                entitiesCount: newEntities.length,
-                                                pathsCount: newPaths.length,
-                                                floorsCount: parsedFloors?.length || 0,
-                                                floors: parsedFloors?.map(f => f.name) || []
-                                            });
-
-                                            // 3. 【新增】如果用户上传了3D模型，创建模型对象
-                                            let sceneModelObj = null;
-                                            if (sceneModelConfig) {
-                                                console.log('🏗️ 添加3D场景模型:', sceneModelConfig.fileName);
-                                                sceneModelObj = {
-                                                    id: uuidv4(),
-                                                    type: 'custom_model',
-                                                    name: '3D场景模型',
-                                                    isBaseMap: false,
-                                                    locked: true, // 默认锁定，防止误触
-                                                    modelUrl: sceneModelConfig.url,
-
-                                                    // 应用自动计算出的参数
-                                                    position: sceneModelConfig.position,
-                                                    scale: sceneModelConfig.scale,
-                                                    rotation: sceneModelConfig.rotation,
-
-                                                    visible: true,
-                                                    opacity: 1
-                                                };
-
-                                                // 💡 优化体验：如果有了3D模型，让SLAM底图变淡作为参考
-                                                if (baseMap) {
-                                                    baseMap.opacity = 0.3; // 让底图变淡
-                                                    baseMap.position[1] = -0.05; // 稍微放低一点
-                                                }
-                                            }
-
-                                            // 4. 合并对象列表
-                                            const finalObjects = [
-                                                initialObjects[0],
-                                                baseMap,
-                                                sceneModelObj, // 加入新模型
-                                                ...newEntities,
-                                                ...newPaths
-                                            ].filter(Boolean);
-
-                                            console.log('🎨 最终对象列表:', {
-                                                total: finalObjects.length,
-                                                floor: !!initialObjects[0],
-                                                baseMap: !!baseMap,
-                                                sceneModel: !!sceneModelObj,
-                                                entities: newEntities.length,
-                                                paths: newPaths.length,
-                                                objects: finalObjects.map(o => ({ type: o.type, name: o.name, visible: o.visible }))
-                                            });
-
-                                            // 5. 创建新场景（包含楼层信息）
-                                            // 🔑 重要：新架构下，场景不再直接包含objects
-                                            // 而是每个楼层独立包含自己的objects
-                                            const newFloor = {
-                                                id: uuidv4(),
-                                                name: sceneName,
-                                                description: `包含 ${newEntities.length} 个点位${sceneModelObj ? ' + 3D模型' : ''}`,
-                                                mapPath: mapPath,
-                                                isDefault: false,
-                                                // 🏢 楼层列表：创建默认的1F楼层，并将所有对象放入其中
-                                                floorLevels: [{
-                                                    id: 'floor-1',
-                                                    name: '1F',
-                                                    height: 0,
-                                                    visible: true,
-                                                    // 将所有对象、底图、点位、路径数据都放到1F楼层中
-                                                    objects: finalObjects,
-                                                    baseMapData: baseMap,
-                                                    baseMapId: null,
-                                                    waypointsData: newEntities,
-                                                    pathsData: newPaths,
-                                                    sceneModelData: sceneModelObj
-                                                }]
-                                            };
-
-                                            console.log('📦 新场景数据:', {
-                                                id: newFloor.id,
-                                                name: newFloor.name,
-                                                objectsCount: finalObjects.length,
-                                                hasBaseMap: !!baseMap,
-                                                hasSceneModel: !!sceneModelObj,
-                                                entitiesCount: newEntities.length,
-                                                pathsCount: newPaths.length,
-                                                floorLevels: newFloor.floorLevels?.map(f => f.name) || []
-                                            });
-
-                                            // 6. 更新状态
-                                            // 如果当前只有默认场景，检查是否有用户编辑内容
-                                            const hasOnlyDefaultScene = floors.length === 1 && floors[0].isDefault;
-                                            const sceneIsClean = isSceneClean(objects);
-
-                                            if (hasOnlyDefaultScene) {
-                                                // 如果默认场景有用户编辑的内容，询问用户选择合并或替换
-                                                if (!sceneIsClean) {
-                                                    // 默认场景有内容 -> 打开覆盖确认弹窗
-                                                    console.log('⚠️ 默认场景有内容，等待用户确认...');
-                                                    setPendingNewSceneData({
-                                                        newFloor,
-                                                        finalObjects,
-                                                        newEntities,
-                                                        newPaths,
-                                                        baseMap,
-                                                        sceneModelObj
-                                                    });
-                                                    setOverwriteDefaultScene(false);
-                                                    setShowOverwriteConfirmDialog(true);
-                                                    return; // 暂停执行，等待弹窗结果
-                                                } else {
-                                                    // 默认场景是干净的，直接替换
-                                                    console.log('🔄 替换默认场景（场景为空）');
-                                                    setFloors([newFloor]);
-                                                }
-                                            } else {
-                                                // 不是默认场景，正常添加
-                                                // 但如果存在空的默认场景，先删除它
-                                                const defaultScene = floors.find(f => f.isDefault);
-                                                const hasEmptyDefaultScene = defaultScene && 
-                                                    isSceneClean(defaultScene.objects || []);
-
-                                                if (hasEmptyDefaultScene) {
-                                                    console.log('🗑️ 删除空的默认场景');
-                                                    const nonDefaultFloors = floors.filter(f => !f.isDefault);
-                                                    setFloors([...nonDefaultFloors, newFloor]);
-                                                } else {
-                                                    console.log('➕ 添加新场景到列表');
-                                                    setFloors([...floors, newFloor]);
-                                                }
-                                            }
-
-                                            console.log('🎯 切换到新场景:', newFloor.id);
-                                            setCurrentFloorId(newFloor.id);
-                                            // 🏢 设置当前楼层为第一个楼层
-                                            if (newFloor.floorLevels && newFloor.floorLevels.length > 0) {
-                                                setCurrentFloorLevelId(newFloor.floorLevels[0].id);
-                                            }
-                                            setObjects(finalObjects);
-                                            setHistory([finalObjects]);
-                                            setHistoryIndex(0);
-
-                                            console.log('✅ [分支1] 新增完成，关闭弹窗');
-                                            setEditingFloor(null);
-                                            setShowFloorManager(false);
-
-                                            // 构建楼层信息字符串
-                                            const floorInfo = newFloor.floorLevels && newFloor.floorLevels.length > 1
-                                                ? `\n楼层: ${newFloor.floorLevels.map(f => f.name).join(', ')}`
-                                                : '';
-                                            alert(`✅ 场景创建成功\n\n地图: ${baseMap.name}\n点位: ${newEntities.length} 个\n路径: ${newPaths.length} 条${floorInfo}${sceneModelObj ? '\n3D模型: 已自动对齐' : ''}`);
-
-                                        } catch (error) {
-                                            console.error('❌ [分支1] 失败:', error);
-                                            alert(`加载失败: ${error.message}`);
+                                        // 添加到场景列表
+                                        const hasOnlyDefaultScene = floors.length === 1 && floors[0].isDefault;
+                                        if (hasOnlyDefaultScene) {
+                                            // 替换默认场景
+                                            setFloors([newFloor]);
+                                        } else {
+                                            // 添加到现有场景列表
+                                            setFloors([...floors, newFloor]);
                                         }
 
-                                    } else {
-                                        // -------------------------------------------
-                                        // 分支 B: 编辑/更新场景 (Edit Scene)
-                                        // -------------------------------------------
-                                        console.log('📝 [分支2] 用户点击确定，正在检查变更...');
+                                        // 切换到新场景
+                                        setCurrentFloorId(newFloor.id);
+                                        setEditingFloor(null);
+                                        setShowFloorManager(false);
 
-                                        // 1. 获取原始场景数据，用于比对
-                                        const originalFloor = floors.find(f => f.id === editingFloor.id);
-
-                                        // 2. 判断地图源是否发生了变化
-                                        const isMapChanged = editingFloor.mapPath !== originalFloor.mapPath;
-
-                                        // 3. 先更新元数据 (名称、描述等)，无论地图变没变，名字改了得存
-                                        const newFloors = floors.map(f => {
-                                            if (f.id === editingFloor.id) {
-                                                return {
-                                                    ...f,
-                                                    name: editingFloor.name,
-                                                    // 注意：如果地图变了，这里先暂时更新路径字符串
-                                                    // 实际的 3D 对象更新交给后面的 Merge Dialog 处理
-                                                    mapPath: editingFloor.mapPath
-                                                };
-                                            }
-                                            return f;
-                                        });
-                                        setFloors(newFloors);
-
-                                        // 4. 核心逻辑：如果地图源变了 -> 触发合并策略弹窗
-                                        if (isMapChanged) {
-                                            console.log('🚨 检测到地图源变更，准备弹出策略选择框...');
-
-                                            try {
-                                                // A. 下载新地图数据
-                                                const response = await fetch(editingFloor.mapPath);
-                                                const jsonData = await response.json();
-
-                                                // B. 解析数据 (但不立即应用)
-                                                const { baseMap, entities: newEntities, paths: newPaths, rawData } = parseFullMapJson(jsonData);
-
-                                                // C. 填充数据并打开"合并策略对话框"
-                                                // 这会复用你之前做好的那个 A/B 选项弹窗
-                                                setMergeDialogData({
-                                                    baseMap,
-                                                    newEntities,
-                                                    newPaths,
-                                                    rawData
-                                                });
-
-                                                // D. 打开弹窗
-                                                setShowMergeDialog(true);
-
-                                                // E. 关闭当前的编辑弹窗 (让位给合并弹窗)
-                                                setEditingFloor(null);
-                                                // setShowFloorManager(false); // 可选：保持场景管理器打开
-
-                                            } catch (error) {
-                                                console.error('❌ 下载新地图失败:', error);
-                                                alert('无法获取新地图数据，更新中止');
-                                            }
-                                        }
-                                        // 5. 如果地图没变 -> 检查是否有3D模型更新
-                                        else {
-                                            console.log('✅ [分支2] 地图未变更，检查3D模型更新');
-
-                                            // 检查是否上传了新的3D模型
-                                            if (editingFloor.sceneModelConfig) {
-                                                console.log('🏗️ [分支2] 检测到3D模型上传，添加到场景');
-
-                                                // 创建3D模型对象
-                                                const sceneModelObj = {
-                                                    id: uuidv4(),
-                                                    type: 'custom_model',
-                                                    name: '3D场景模型',
-                                                    isBaseMap: false,
-                                                    locked: true,
-                                                    modelUrl: editingFloor.sceneModelConfig.url,
-                                                    position: editingFloor.sceneModelConfig.position,
-                                                    scale: editingFloor.sceneModelConfig.scale,
-                                                    rotation: editingFloor.sceneModelConfig.rotation,
-                                                    visible: true,
-                                                    opacity: 1
-                                                };
-
-                                                // 移除旧的3D场景模型（如果存在）
-                                                const objectsWithoutOldModel = objects.filter(o =>
-                                                    !(o.type === 'custom_model' && o.name === '3D场景模型')
-                                                );
-
-                                                // 添加新模型
-                                                const updatedObjects = [...objectsWithoutOldModel, sceneModelObj];
-
-                                                // 更新场景对象
-                                                commitHistory(updatedObjects);
-
-                                                // 更新场景数据
-                                                const updatedFloors = floors.map(f => {
-                                                    if (f.id === editingFloor.id) {
-                                                        return {
-                                                            ...f,
-                                                            objects: updatedObjects,
-                                                            sceneModelData: sceneModelObj,
-                                                            description: `${f.description || ''}${f.description && !f.description.includes('3D模型') ? ' + 3D模型' : ''}`
-                                                        };
-                                                    }
-                                                    return f;
-                                                });
-                                                setFloors(updatedFloors);
-
-                                                console.log('✅ [分支2] 3D模型已添加到场景');
-                                                alert('✅ 3D模型已成功添加到场景');
-                                            } else {
-                                                console.log('✅ [分支2] 仅保存元数据（名称等）');
-                                            }
-
-                                            setEditingFloor(null);
-                                            setShowFloorManager(false);
-                                        }
+                                        alert(`✅ 场景创建成功\n\n场景名称: ${sceneName}\n已创建默认楼层: 1F\n\n请在"编辑场景"中为楼层添加地图数据。`);
+                                        return;
                                     }
+
+                                    // -------------------------------------------
+                                    // 分支 B: 编辑现有场景
+                                    // -------------------------------------------
+                                    console.log('📝 编辑场景，只更新场景名称');
+
+                                    // 更新场景名称
+                                    const newFloors = floors.map(f => {
+                                        if (f.id === editingFloor.id) {
+                                            return {
+                                                ...f,
+                                                name: editingFloor.name
+                                            };
+                                        }
+                                        return f;
+                                    });
+                                    setFloors(newFloors);
+                                    
+                                    setEditingFloor(null);
+                                    setShowFloorManager(false);
+                                    
+                                    alert('✅ 场景名称已更新');
+                                }
                                 }}
                                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-bold"
                             >
