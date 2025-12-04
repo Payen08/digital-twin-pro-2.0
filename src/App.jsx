@@ -3002,19 +3002,44 @@ const App = () => {
         console.log('🏢 切换到楼层:', currentFloorLevel.name, '| ID:', currentFloorLevel.id);
         
         // 加载当前楼层的对象
+        let validObjects = [];
+        
         if (currentFloorLevel.objects && currentFloorLevel.objects.length > 0) {
             // 过滤掉null和undefined
-            const validObjects = currentFloorLevel.objects.filter(obj => obj != null);
+            validObjects = currentFloorLevel.objects.filter(obj => obj != null);
             console.log('✅ 从楼层恢复对象:', validObjects.length, '(原始:', currentFloorLevel.objects.length, ')');
-            setObjects(validObjects);
-            setHistory([validObjects]);
-            setHistoryIndex(0);
         } else {
-            console.log('📭 当前楼层没有对象，清空场景');
-            setObjects([]);
-            setHistory([[]]);
-            setHistoryIndex(0);
+            console.log('📭 当前楼层没有对象');
         }
+        
+        // 如果楼层有3D模型数据，创建模型对象
+        if (currentFloorLevel.sceneModelData) {
+            console.log('🏗️ 楼层有3D模型，创建模型对象');
+            const modelObj = {
+                id: `model_${currentFloorLevel.id}`,
+                type: 'custom_model',
+                name: currentFloorLevel.sceneModelData.fileName || '3D底图模型',
+                isBaseMap: false,
+                locked: false,
+                modelUrl: currentFloorLevel.sceneModelData.url,
+                position: currentFloorLevel.sceneModelData.position || [0, 0, 0],
+                scale: currentFloorLevel.sceneModelData.scale || [1, 1, 1],
+                rotation: [0, 0, 0],
+                visible: true,
+                opacity: 1
+            };
+            
+            // 检查是否已经有这个模型对象
+            const hasModel = validObjects.some(obj => obj.id === modelObj.id);
+            if (!hasModel) {
+                validObjects.push(modelObj);
+                console.log('✅ 已添加3D模型对象到场景');
+            }
+        }
+        
+        setObjects(validObjects);
+        setHistory([validObjects]);
+        setHistoryIndex(0);
     }, [currentFloorLevel]);
     
 
