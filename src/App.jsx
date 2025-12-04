@@ -2936,8 +2936,18 @@ const App = () => {
 
 
     // 切换场景
+    // 使用useRef跟踪上一个场景ID，避免重复触发
+    const prevFloorIdRef = useRef(null);
+    
     useEffect(() => {
         if (!currentFloorId || floors.length === 0) return;
+
+        // 只有当场景ID真正改变时才处理
+        if (prevFloorIdRef.current === currentFloorId) {
+            return;
+        }
+        
+        prevFloorIdRef.current = currentFloorId;
 
         const floor = floors.find(f => f.id === currentFloorId);
         if (!floor) return;
