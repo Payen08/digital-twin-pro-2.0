@@ -2360,6 +2360,7 @@ const App = () => {
     }); // 当前楼层ID
     const [showFloorManager, setShowFloorManager] = useState(false);
     const [editingFloor, setEditingFloor] = useState(null);
+    const [editingFloorLevelId, setEditingFloorLevelId] = useState(null); // 正在编辑地图的楼层ID
     const [currentMapPath, setCurrentMapPath] = useState(null);
     const [availableMaps] = useState(getAvailableMaps());
     const [floorDataCache, setFloorDataCache] = useState({}); // 缓存场景数据
@@ -4849,141 +4850,7 @@ const App = () => {
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-xs text-gray-400 mb-2 flex items-center gap-2">
-                                    * 场景基础数据源
-                                    <span className="text-gray-500 text-[10px] font-normal">（只读共享，多场景可使用同一数据源）</span>
-                                </label>
-                                <div className="flex gap-2">
-                                    <select
-                                        value={editingFloor.mapPath || currentMapPath || availableMaps[0]?.path}
-                                        onChange={(e) => setEditingFloor({ ...editingFloor, mapPath: e.target.value })}
-                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-sm text-white outline-none focus:border-blue-500"
-                                    >
-                                        {availableMaps.map(map => (
-                                            <option key={map.id} value={map.path}>
-                                                {map.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs text-gray-400 mb-2">* 底图选择</label>
-                                <select
-                                    value={editingFloor.mapPath || currentMapPath || availableMaps[0]?.path}
-                                    onChange={(e) => setEditingFloor({ ...editingFloor, mapPath: e.target.value })}
-                                    className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-4 py-2 text-sm text-white outline-none focus:border-blue-500"
-                                >
-                                    {availableMaps.map(map => (
-                                        <option key={map.id} value={map.path}>
-                                            {map.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs text-gray-400 mb-2">导入3D场景模型 <span className="text-gray-600">ⓘ 自动适配底图尺寸</span></label>
-
-                                {/* 显示已上传的文件名和自动计算的状态 */}
-                                {editingFloor.sceneModelConfig ? (
-                                    <div className="bg-green-900/20 border border-green-500/50 rounded-lg p-3 mb-2 flex justify-between items-start">
-                                        <div className="flex-1">
-                                            <div className="text-xs text-green-400 font-bold mb-1">✅ 模型已自动对齐</div>
-                                            <div className="text-[10px] text-gray-500 mb-1">{editingFloor.sceneModelConfig.fileName}</div>
-                                            <div className="text-[10px] text-gray-400 space-y-0.5">
-                                                <div>缩放: X={editingFloor.sceneModelConfig.scale[0].toFixed(4)}, Z={editingFloor.sceneModelConfig.scale[2].toFixed(4)}</div>
-                                                <div>位移: X={editingFloor.sceneModelConfig.position[0].toFixed(2)}, Z={editingFloor.sceneModelConfig.position[2].toFixed(2)}</div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => {
-                                                setEditingFloor({ ...editingFloor, sceneModelConfig: null });
-                                            }}
-                                            className="text-gray-500 hover:text-white transition-colors"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={() => document.getElementById('scene-model-upload').click()}
-                                        className="w-full flex items-center justify-center gap-2 p-3 rounded-lg bg-[#1a1a1a] hover:bg-[#222] transition-all text-gray-400 border border-dashed border-[#333]"
-                                    >
-                                        <Plus size={16} />
-                                        <span className="text-xs">选择3D模型文件 (自动适配底图)</span>
-                                    </button>
-                                )}
-
-                                <input
-                                    id="scene-model-upload"
-                                    type="file"
-                                    className="hidden"
-                                    accept=".glb,.gltf"
-                                    onChange={async (e) => {
-                                        console.log('📤 开始上传3D模型文件');
-                                        const file = e.target.files[0];
-                                        if (!file) {
-                                            console.log('⚠️ 没有选择文件');
-                                            return;
-                                        }
-
-                                        console.log('📁 文件信息:', {
-                                            name: file.name,
-                                            size: (file.size / 1024 / 1024).toFixed(2) + 'MB',
-                                            type: file.type
-                                        });
-
-                                        // 检查文件大小 (50MB)
-                                        if (file.size > 50 * 1024 * 1024) {
-                                            alert('文件过大！请选择小于 50MB 的模型文件。');
-                                            e.target.value = '';
-                                            return;
-                                        }
-
-                                        // 获取当前选中的地图路径
-                                        const currentMapPath = editingFloor.mapPath || availableMaps[0]?.path;
-                                        console.log('🗺️ 当前地图路径:', currentMapPath);
-
-                                        try {
-                                            // 显示加载提示
-                                            console.log('⏳ 正在分析模型并计算对齐参数...');
-
-                                            // 执行自动计算
-                                            const config = await autoAlignModelToMap(file, currentMapPath);
-
-                                            console.log('✅ 模型对齐参数计算完成:', {
-                                                scale: config.scale,
-                                                position: config.position,
-                                                urlLength: config.url?.length
-                                            });
-
-                                            // 保存配置到 editingFloor 状态中
-                                            setEditingFloor({
-                                                ...editingFloor,
-                                                sceneModelConfig: {
-                                                    fileName: file.name,
-                                                    ...config
-                                                }
-                                            });
-
-                                            console.log('✅ 配置已保存到 editingFloor');
-
-                                        } catch (error) {
-                                            console.error('❌ 模型处理失败:', error);
-                                            alert("模型解析失败: " + error.message);
-                                        } finally {
-                                            e.target.value = ''; // 重置 input
-                                            console.log('🔄 输入框已重置');
-                                        }
-                                    }}
-                                />
-                                <p className="text-[10px] text-gray-600 mt-1">支持格式：GLB、GLTF | 文件大小：≤50MB</p>
-                            </div>
-
-                            {/* 楼层管理区域 - 只在编辑现有场景时显示 */}
+                            {/* 楼层管理区域 */}
                             {!editingFloor.isNew && currentScene && currentScene.floorLevels && (
                                 <div className="border-t border-[#2a2a2a] pt-4">
                                     <div className="flex items-center justify-between mb-3">
@@ -4999,37 +4866,105 @@ const App = () => {
                                             <span>新增楼层</span>
                                         </button>
                                     </div>
-                                    <div className="space-y-1 max-h-[120px] overflow-y-auto custom-scrollbar">
+                                    <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
                                         {currentScene.floorLevels.map((floor) => (
                                             <div
                                                 key={floor.id}
-                                                className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a] rounded-lg hover:bg-[#222] transition-colors"
+                                                className="bg-[#1a1a1a] rounded-lg overflow-hidden"
                                             >
-                                                <div className="flex-1 text-xs text-white">{floor.name}</div>
-                                                <button
-                                                    onClick={() => {
-                                                        const newName = prompt('重命名楼层:', floor.name);
-                                                        if (newName && newName.trim()) {
-                                                            renameFloorLevel(floor.id, newName.trim());
-                                                        }
-                                                    }}
-                                                    className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded transition-all"
-                                                    title="重命名"
-                                                >
-                                                    <Edit3 size={12} />
-                                                </button>
-                                                {currentScene.floorLevels.length > 1 && (
+                                                {/* 楼层标题栏 */}
+                                                <div className="flex items-center gap-2 px-3 py-2 hover:bg-[#222] transition-colors">
+                                                    <button
+                                                        onClick={() => setEditingFloorLevelId(editingFloorLevelId === floor.id ? null : floor.id)}
+                                                        className="p-1 text-gray-400 hover:text-white transition-colors"
+                                                        title="展开/收起"
+                                                    >
+                                                        {editingFloorLevelId === floor.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                    </button>
+                                                    <div className="flex-1 text-xs text-white">{floor.name}</div>
                                                     <button
                                                         onClick={() => {
-                                                            if (confirm(`确定删除楼层 "${floor.name}" 吗？\n该楼层的所有对象也会被删除。`)) {
-                                                                deleteFloorLevel(floor.id);
+                                                            const newName = prompt('重命名楼层:', floor.name);
+                                                            if (newName && newName.trim()) {
+                                                                renameFloorLevel(floor.id, newName.trim());
                                                             }
                                                         }}
-                                                        className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
-                                                        title="删除楼层"
+                                                        className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded transition-all"
+                                                        title="重命名"
                                                     >
-                                                        <Trash2 size={12} />
+                                                        <Edit3 size={12} />
                                                     </button>
+                                                    {currentScene.floorLevels.length > 1 && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (confirm(`确定删除楼层 "${floor.name}" 吗？\n该楼层的所有对象也会被删除。`)) {
+                                                                    deleteFloorLevel(floor.id);
+                                                                }
+                                                            }}
+                                                            className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
+                                                            title="删除楼层"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* 楼层地图设置（可展开） */}
+                                                {editingFloorLevelId === floor.id && (
+                                                    <div className="px-3 pb-3 space-y-3 border-t border-[#2a2a2a] pt-3">
+                                                        <div className="text-[10px] text-gray-500 mb-2">为此楼层设置独立的地图数据</div>
+                                                        
+                                                        {/* 底图选择 */}
+                                                        <div>
+                                                            <label className="block text-[10px] text-gray-400 mb-1">底图选择</label>
+                                                            <select
+                                                                value={floor.baseMapId || ''}
+                                                                onChange={(e) => {
+                                                                    // 更新楼层的baseMapId
+                                                                    setFloors(prev => prev.map(scene => {
+                                                                        if (scene.id === currentFloorId) {
+                                                                            return {
+                                                                                ...scene,
+                                                                                floorLevels: scene.floorLevels.map(fl => 
+                                                                                    fl.id === floor.id 
+                                                                                        ? { ...fl, baseMapId: e.target.value }
+                                                                                        : fl
+                                                                                )
+                                                                            };
+                                                                        }
+                                                                        return scene;
+                                                                    }));
+                                                                }}
+                                                                className="w-full bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[11px] text-white outline-none focus:border-blue-500"
+                                                            >
+                                                                <option value="">未选择</option>
+                                                                {availableMaps.map(map => (
+                                                                    <option key={map.id} value={map.id}>
+                                                                        {map.name}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        
+                                                        {/* 加载地图按钮 */}
+                                                        <button
+                                                            onClick={() => {
+                                                                // 切换到这个楼层
+                                                                setCurrentFloorLevelId(floor.id);
+                                                                // 打开地图选择器
+                                                                setShowMapSelector(true);
+                                                            }}
+                                                            className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
+                                                        >
+                                                            <Upload size={12} />
+                                                            <span>加载地图到此楼层</span>
+                                                        </button>
+                                                        
+                                                        {/* 对象统计 */}
+                                                        <div className="text-[10px] text-gray-500">
+                                                            对象数量: {floor.objects?.length || 0}
+                                                        </div>
+                                                    </div>
                                                 )}
                                             </div>
                                         ))}
