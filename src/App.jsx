@@ -3962,6 +3962,8 @@ const App = () => {
         console.log('📦 当前对象数量:', objects.length);
 
         // 1. 加载底图
+        let baseMapDataForGLB = null; // 保存底图数据供GLB使用
+        
         if (jsonData.mapfileEntitys && jsonData.mapfileEntitys.length > 0) {
             jsonData.mapfileEntitys.forEach(mapEntity => {
                 const record = mapEntity.record;
@@ -3970,17 +3972,22 @@ const App = () => {
                 console.log('📍 加载地图底图:', record.name);
                 console.log('  - 尺寸:', record.width, 'x', record.height);
                 console.log('  - 分辨率:', record.resolution);
+                console.log('  - 原点:', record.origin);
                 console.log('  - 图片数据长度:', base64Image?.length || 0);
 
                 // 创建底图对象
                 const mapWidth = record.width * record.resolution;
                 const mapHeight = record.height * record.resolution;
+                
+                // 计算底图中心位置
+                const mapCenterX = record.origin.x + mapWidth / 2;
+                const mapCenterZ = record.origin.y + mapHeight / 2;
 
                 const baseMapObj = {
                     id: `map_${record.uid}`,
                     type: 'map_image',
                     name: record.name || '地图底图',
-                    position: [0, -0.01, 0],
+                    position: [mapCenterX, -0.01, mapCenterZ], // 使用底图中心
                     rotation: [0, 0, 0],
                     scale: [mapWidth, 1, mapHeight],
                     color: '#ffffff',
@@ -3993,6 +4000,15 @@ const App = () => {
                 };
 
                 newObjects.push(baseMapObj);
+                
+                // 🔑 保存底图数据供GLB模型使用
+                if (!baseMapDataForGLB) {
+                    baseMapDataForGLB = {
+                        actualSize: { width: record.width, height: record.height },
+                        resolution: record.resolution,
+                        origin: record.origin
+                    };
+                }
             });
         }
 
@@ -4146,7 +4162,7 @@ const App = () => {
                             return {
                                 ...floor,
                                 objects: newObjects,
-                                baseMapData: jsonData.mapfileEntitys?.[0] || null,
+                                baseMapData: baseMapDataForGLB, // 🔑 保存处理后的底图数据供GLB使用
                                 waypointsData: jsonData.graphTopologys?.[0]?.poses || null,
                                 pathsData: jsonData.graphTopologys?.[0]?.paths || null
                             };
