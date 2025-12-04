@@ -3019,16 +3019,15 @@ const App = () => {
                 id: `model_${currentFloorLevel.id}`,
                 type: 'custom_model',
                 name: currentFloorLevel.sceneModelData.fileName || '3D底图模型',
-                isBaseMap: true, // 标记为底图，防止被删除
                 locked: true, // 🔒 锁定模型，不允许修改
                 modelUrl: currentFloorLevel.sceneModelData.url,
-                modelScale: 1, // 添加modelScale字段
+                modelScale: 1,
                 position: currentFloorLevel.sceneModelData.position || [0, 0, 0],
                 scale: currentFloorLevel.sceneModelData.scale || [1, 1, 1],
                 rotation: [0, 0, 0],
                 visible: true,
                 opacity: 1,
-                color: '#ffffff' // 添加默认颜色
+                color: '#ffffff'
             };
             
             console.log('🏗️ 从楼层数据创建模型对象:', modelObj);
@@ -5315,16 +5314,15 @@ const App = () => {
                                                                                     id: `model_${floor.id}`,
                                                                                     type: 'custom_model',
                                                                                     name: file.name || '3D底图模型',
-                                                                                    isBaseMap: true, // 标记为底图
                                                                                     locked: true, // 🔒 锁定，不允许修改
                                                                                     modelUrl: url,
-                                                                                    modelScale: 1, // 添加modelScale字段
+                                                                                    modelScale: 1,
                                                                                     position: autoPosition,
                                                                                     scale: autoScale,
                                                                                     rotation: [0, 0, 0],
                                                                                     visible: true,
                                                                                     opacity: 1,
-                                                                                    color: '#ffffff' // 添加默认颜色
+                                                                                    color: '#ffffff'
                                                                                 };
                                                                                 
                                                                                 console.log('🏗️ 创建的模型对象:', modelObj);
