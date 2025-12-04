@@ -3819,13 +3819,20 @@ const App = () => {
         console.log('mapfileEntitys 数量:', jsonData.mapfileEntitys?.length || 0);
         console.log('graphTopologys 数量:', jsonData.graphTopologys?.length || 0);
         
-        // 检查是否有数据
-        if ((!jsonData.mapfileEntitys || jsonData.mapfileEntitys.length === 0) && 
-            (!jsonData.graphTopologys || jsonData.graphTopologys.length === 0)) {
-            console.error('❌ JSON数据中没有找到地图数据！');
-            console.error('期望的字段: mapfileEntitys (底图) 或 graphTopologys (点位和路径)');
+        // 检测JSON格式类型
+        let formatType = 'unknown';
+        if (jsonData.mapfileEntitys || jsonData.graphTopologys) {
+            formatType = 'legacy'; // 旧格式
+        } else if (jsonData.imageData && jsonData.resolution) {
+            formatType = 'new'; // 新格式（单个地图对象）
+        }
+        
+        console.log('📋 检测到的格式类型:', formatType);
+        
+        if (formatType === 'unknown') {
+            console.error('❌ JSON数据格式无法识别！');
             console.error('实际的字段:', Object.keys(jsonData));
-            alert('❌ JSON数据格式不正确\n\n未找到地图数据。请确保JSON包含以下字段之一：\n- mapfileEntitys (底图)\n- graphTopologys (点位和路径)');
+            alert('❌ JSON数据格式不正确\n\n未找到地图数据。支持的格式：\n1. 包含 mapfileEntitys 和 graphTopologys 的格式\n2. 包含 imageData 和 resolution 的地图对象');
             return;
         }
         
@@ -3835,6 +3842,62 @@ const App = () => {
             return;
         }
         
+        // 处理新格式
+        if (formatType === 'new') {
+            console.log('🆕 使用新格式加载地图');
+            
+            // 从URL加载图片
+            const imageUrl = jsonData.imageData;
+            const mapWidth = jsonData.actualSize.width * jsonData.resolution;
+            const mapHeight = jsonData.actualSize.height * jsonData.resolution;
+            
+            const baseMapObj = {
+                id: `map_${jsonData.id}`,
+                type: 'map_image',
+                name: jsonData.name || '地图底图',
+                position: [0, -0.01, 0],
+                rotation: [0, 0, 0],
+                scale: [mapWidth, 1, mapHeight],
+                color: '#ffffff',
+                opacity: 0.8,
+                visible: true,
+                locked: true,
+                isBaseMap: true,
+                imageData: imageUrl, // 使用URL而不是base64
+                mapMetadata: jsonData
+            };
+            
+            const newObjects = [baseMapObj];
+            
+            // 保存到楼层
+            setFloors(prev => prev.map(scene => {
+                if (scene.id === currentFloorId) {
+                    return {
+                        ...scene,
+                        floorLevels: scene.floorLevels.map(floor => {
+                            if (floor.id === currentFloorLevelId) {
+                                console.log(`💾 将地图保存到楼层: ${floor.name}`);
+                                return {
+                                    ...floor,
+                                    objects: newObjects,
+                                    baseMapData: jsonData,
+                                    serverUrl: floor.serverUrl || `http://${imageUrl.split('/')[2]}` // 提取服务器地址
+                                };
+                            }
+                            return floor;
+                        })
+                    };
+                }
+                return scene;
+            }));
+            
+            setObjects(newObjects);
+            console.log('✅ 新格式地图加载完成！');
+            console.log('💡 提示：点位和路径数据需要从服务器API获取');
+            return;
+        }
+        
+        // 处理旧格式
         if (jsonData.graphTopologys && jsonData.graphTopologys.length > 0) {
             console.log('📍 第一个topology的poses数量:', jsonData.graphTopologys[0].poses?.length || 0);
             console.log('🛤️ 第一个topology的paths数量:', jsonData.graphTopologys[0].paths?.length || 0);

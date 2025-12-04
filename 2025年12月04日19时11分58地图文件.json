@@ -1,0 +1,22 @@
+{
+  "id": "b87e1fa6-7347-4c3f-a685-11ade4297355",
+  "name": "展厅上下料-最新",
+  "resolution": 0.019999999552965164,
+  "actualSize": {
+    "width": 1392,
+    "height": 386
+  },
+  "origin": {
+    "x": -8.9399995803833,
+    "y": -3.4119999408721924,
+    "yaw": 0
+  },
+  "imageData": "http://10.10.30.195:9000/moying-device-data/map/b87e1fa6-7347-4c3f-a685-11ade4297355/image.png",
+  "md5": "9b59837a8beb1e606b46506a4b987138",
+  "zoneId": "73ec2e6c-6f95-4a60-bd5f-ea86275a5527",
+  "workspaceId": "021b5589-6b8f-468a-970c-5622e3ddf5e5",
+  "deleted": false,
+  "disabled": false,
+  "createTime": 1760058933.98,
+  "modifyTime": 1760606276.425
+}
