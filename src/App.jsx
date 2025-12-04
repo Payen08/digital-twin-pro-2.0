@@ -2397,7 +2397,6 @@ const App = () => {
             return null;
         }
         const level = currentScene.floorLevels.find(fl => fl.id === currentFloorLevelId) || currentScene.floorLevels[0];
-        console.log('🏢 当前楼层:', level?.name, '| ID:', level?.id);
         return level;
     }, [currentScene, currentFloorLevelId]);
 
@@ -2955,11 +2954,21 @@ const App = () => {
     }, [currentFloorId, floors]);
     
     // 🔑 新增：切换楼层时加载对应楼层的对象
+    // 使用useRef跟踪上一个楼层ID，避免重复加载
+    const prevFloorLevelIdRef = useRef(null);
+    
     useEffect(() => {
         if (!currentFloorLevel) {
             console.log('⚠️ currentFloorLevel 为空');
             return;
         }
+        
+        // 只有当楼层ID真正改变时才加载对象
+        if (prevFloorLevelIdRef.current === currentFloorLevel.id) {
+            return;
+        }
+        
+        prevFloorLevelIdRef.current = currentFloorLevel.id;
         
         console.log('🏢 切换到楼层:', currentFloorLevel.name, '| ID:', currentFloorLevel.id);
         
@@ -2975,7 +2984,7 @@ const App = () => {
             setHistory([[]]);
             setHistoryIndex(0);
         }
-    }, [currentFloorLevel]); // 依赖currentFloorLevel而不是currentFloorLevelId
+    }, [currentFloorLevel]);
     
 
     // 🔑 修改：自动保存当前楼层的对象数据
