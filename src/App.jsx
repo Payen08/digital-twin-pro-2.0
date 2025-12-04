@@ -3113,8 +3113,25 @@ const App = () => {
     // 自动保存到本地存储
     useEffect(() => {
         try {
+            // 🔑 过滤掉GLB模型的base64数据，只保存引用
+            const floorsToSave = floors.map(scene => ({
+                ...scene,
+                floorLevels: scene.floorLevels.map(floor => {
+                    const floorCopy = { ...floor };
+                    // 如果有sceneModelData，只保存文件名，不保存base64 URL
+                    if (floorCopy.sceneModelData && floorCopy.sceneModelData.url?.startsWith('data:')) {
+                        floorCopy.sceneModelData = {
+                            ...floorCopy.sceneModelData,
+                            url: null, // 不保存base64数据
+                            _note: '需要重新上传GLB文件'
+                        };
+                    }
+                    return floorCopy;
+                })
+            }));
+            
             const dataToSave = {
-                floors,
+                floors: floorsToSave,
                 currentFloorId,
                 currentFloorLevelId,
                 objects,
