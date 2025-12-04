@@ -5289,9 +5289,10 @@ const App = () => {
                                                                                 const mapCenterX = mapData.origin.x + mapWidth / 2;
                                                                                 const mapCenterZ = mapData.origin.y + mapHeight / 2;
                                                                                 
-                                                                                // 模型位置 = 底图中心
+                                                                                // 模型位置 = 底图中心（GLB模型原点在中心）
                                                                                 autoPosition = [mapCenterX, 0, mapCenterZ];
                                                                                 
+                                                                                console.log('  - 底图原点:', [mapData.origin.x, mapData.origin.y]);
                                                                                 console.log('  - 底图中心:', [mapCenterX, mapCenterZ]);
                                                                                 
                                                                                 console.log('  - 自动缩放:', autoScale);
