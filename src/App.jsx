@@ -14,6 +14,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { v4 as uuidv4 } from 'uuid';
 
+// Import Supabase
+import { supabase, saveBaseMap, saveGLBModel, deleteGLBModel, getBaseMap, getGLBModel, saveSceneObjects, getSceneObjects } from './supabaseClient';
+
 // Import utilities
 import { snapToGrid, calculateCenter, localizePoints, createContinuousCurveGeometry } from './utils/geometry';
 import { createPoint, createPath, createDevice, createBaseMap } from './utils/dataModels';
@@ -1418,23 +1421,161 @@ const PathLine = ({ data, isSelected, onSelect }) => {
     );
 };
 
+// 自动缩放的GLB组件 - 完全拉伸模型到地图边界
+const AutoScaleGltf = ({ src, data, baseMapData, onScaleCalculated }) => {
+    const [model, setModel] = useState(null);
+    const [scale, setScale] = useState([1, 1, 1]);
+    const [position, setPosition] = useState([0, 0, 0]);
+    
+    console.log('🔍 AutoScaleGltf 组件渲染:', { src, locked: data.locked, name: data.name, hasBaseMapData: !!baseMapData });
+    
+    useEffect(() => {
+        console.log('🔍 AutoScaleGltf useEffect 触发:', { locked: data.locked, type: data.type, baseMapData });
+        
+        // 🔑 只对 custom_model 类型的模型自动缩放
+        if (data.type !== 'custom_model') {
+            console.log('⚠️ 不是 custom_model 类型，跳过自动缩放');
+            return;
+        }
+        
+        if (!baseMapData) {
+            console.log('⚠️ 没有底图数据，跳过自动缩放');
+            return;
+        }
+        
+        console.log('🚀 开始自动拉伸适配...');
+        
+        const loader = new GLTFLoader();
+        
+        // 配置DRACO解码器
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+        loader.setDRACOLoader(dracoLoader);
+        
+        loader.load(
+            src,
+            (gltf) => {
+                const loadedModel = gltf.scene;
+                
+                // 步骤1: 完全重置模型变换
+                loadedModel.position.set(0, 0, 0);
+                loadedModel.rotation.set(0, 0, 0);
+                loadedModel.scale.set(1, 1, 1);
+                loadedModel.updateMatrixWorld(true);
+                
+                // 检查baseMapData是否存在
+                if (!baseMapData || !baseMapData.actualSize) {
+                    console.warn('⚠️ 没有底图数据，跳过自动缩放');
+                    setModel(loadedModel);
+                    return;
+                }
+                
+                // 从传入的baseMapData获取底图尺寸和原点
+                const mapWidth = baseMapData.actualSize.width * baseMapData.resolution;
+                const mapHeight = baseMapData.actualSize.height * baseMapData.resolution;
+                const mapOrigin = baseMapData.origin;
+                
+                if (mapWidth > 0 && mapHeight > 0) {
+                    console.log('🚀 开始自动拉伸适配...');
+                    console.log('📏 地图尺寸:', mapWidth.toFixed(2), 'x', mapHeight.toFixed(2), '米');
+                    console.log('📍 地图原点:', mapOrigin);
+                    console.log('📍 地图居中在世界坐标 (0, 0, 0)');
+                    
+                    // 步骤2: 计算模型原始边界
+                    const modelBox = new THREE.Box3().setFromObject(loadedModel);
+                    const modelSize = modelBox.getSize(new THREE.Vector3());
+                    
+                    console.log('📦 模型原始尺寸:', modelSize.x.toFixed(2), 'x', modelSize.y.toFixed(2), 'x', modelSize.z.toFixed(2));
+                    
+                    // 步骤3: 计算独立的缩放比例（XZ拉伸撑满，Y保持比例）
+                    const scaleX = mapWidth / modelSize.x;
+                    const scaleZ = mapHeight / modelSize.z;
+                    const scaleY = scaleX; // Y轴使用X轴的缩放，保持建筑高度比例
+                    
+                    console.log('🔧 计算缩放比例:', scaleX.toFixed(4), ',', scaleY.toFixed(4), ',', scaleZ.toFixed(4));
+                    console.log('   - 注意：X和Z独立缩放以撑满地图，Y使用X的缩放保持比例');
+                    
+                    // 步骤4: 应用缩放
+                    loadedModel.scale.set(scaleX, scaleY, scaleZ);
+                    loadedModel.updateMatrixWorld(true);
+                    
+                    // 步骤5: 重新计算缩放后的边界
+                    const scaledBox = new THREE.Box3().setFromObject(loadedModel);
+                    
+                    // 步骤6: 计算对齐偏移（让模型对齐到地图左下角）
+                    // 🔑 底图现在居中在(0,0,0)，所以地图左下角是(-mapWidth/2, -mapHeight/2)
+                    const mapMinX = -mapWidth / 2;
+                    const mapMinZ = -mapHeight / 2;
+                    
+                    const offsetX = mapMinX - scaledBox.min.x;
+                    const offsetY = -scaledBox.min.y; // 让模型底部贴在Y=0平面
+                    const offsetZ = mapMinZ - scaledBox.min.z;
+                    
+                    console.log('📍 计算偏移量:', offsetX.toFixed(2), ',', offsetY.toFixed(2), ',', offsetZ.toFixed(2));
+                    
+                    // 🔑 直接应用到模型上，而不是通过state
+                    loadedModel.position.set(offsetX, offsetY, offsetZ);
+                    
+                    console.log('✅ 自动拉伸适配完成！');
+                    console.log('最终模型状态:', {
+                        scale: [scaleX, scaleY, scaleZ],
+                        position: [offsetX, offsetY, offsetZ]
+                    });
+                    
+                    // 🔑 回调通知父组件更新scale
+                    if (onScaleCalculated) {
+                        onScaleCalculated({
+                            scale: [scaleX, scaleY, scaleZ],
+                            position: [offsetX, offsetY, offsetZ]
+                        });
+                    }
+                }
+                
+                setModel(loadedModel);
+            },
+            undefined,
+            (error) => {
+                console.error('❌ GLB模型加载失败:', error);
+            }
+        );
+    }, [src]); // 🔑 只在src变化时重新加载模型
+    
+    if (!model) {
+        return (
+            <mesh>
+                <boxGeometry args={[1, 1, 1]} />
+                <meshBasicMaterial color="gray" wireframe />
+            </mesh>
+        );
+    }
+    
+    // 🔑 直接返回primitive，scale和position已经在useEffect中应用到model上了
+    return <primitive object={model} />;
+};
+
 // 场景对象
-const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMode, onTransformEnd, onUpdatePoints, onToggleEdit, cameraView, enableSnap }) => {
+const SceneObject = ({ data, baseMapData, isSelected, isEditingPoints, onSelect, transformMode, onTransformEnd, onUpdatePoints, onToggleEdit, cameraView, enableSnap }) => {
     const groupRef = useRef(); const [hovered, setHovered] = useState(false); useCursor(hovered && !isSelected && !isEditingPoints);
 
     // 调试：输出3D场景模型信息
     useEffect(() => {
-        if (data.name === '3D场景模型') {
-            console.log('🏗️ 渲染3D场景模型:', {
+        if (data.type === 'custom_model') {
+            console.log('🏗️ 渲染GLB模型:', {
                 name: data.name,
                 type: data.type,
                 visible: data.visible,
                 modelUrl: data.modelUrl,
                 position: data.position,
-                scale: data.scale
+                scale: data.scale,
+                hasBaseMapData: !!baseMapData,
+                baseMapData: baseMapData ? {
+                    hasActualSize: !!baseMapData.actualSize,
+                    hasResolution: !!baseMapData.resolution,
+                    hasOrigin: !!baseMapData.origin
+                } : null
             });
         }
-    }, [data]);
+    }, [data, baseMapData]);
 
     if (!data.visible) return null; const isFloorType = data.type === 'floor' || data.type === 'polygon_floor';
 
@@ -1452,13 +1593,13 @@ const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMod
     }, [data.type, data.id, isSelected, isEditingPoints, data.points]);
     return (
         <>
-            <group ref={groupRef} name={data.id} position={data.position} rotation={data.rotation} scale={data.scale} onClick={(e) => { e.stopPropagation(); onSelect(data.id, e.shiftKey, e.ctrlKey || e.metaKey); }} onDoubleClick={(e) => { e.stopPropagation(); if (onToggleEdit) onToggleEdit(data.id); }} onPointerOver={(e) => { e.stopPropagation(); if (!isSelected) setHovered(true); }} onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}>
+            <group ref={groupRef} name={data.id} position={data.position} rotation={data.rotation} scale={data.locked ? [1, 1, 1] : data.scale} onClick={(e) => { e.stopPropagation(); if (!(data.type === 'custom_model' && data.locked)) { onSelect(data.id, e.shiftKey, e.ctrlKey || e.metaKey); } }} onDoubleClick={(e) => { e.stopPropagation(); if (!(data.type === 'custom_model' && data.locked) && onToggleEdit) { onToggleEdit(data.id); } }} onPointerOver={(e) => { e.stopPropagation(); if (!(data.type === 'custom_model' && data.locked) && !isSelected) { setHovered(true); } }} onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}>
                 {data.type === 'curved_wall' ? (<><ContinuousCurveMesh points={data.points} thickness={data.thickness || 0.2} height={data.height || 3} tension={data.tension !== undefined ? data.tension : 0.5} closed={data.closed} color={data.color} opacity={data.opacity || 1} isSelected={isSelected} hovered={hovered && !isSelected} />{isSelected && isEditingPoints && (<CurveEditor points={data.points} onUpdatePoint={(idx, newPos) => { const newPoints = [...data.points]; newPoints[idx] = newPos; onUpdatePoints(data.id, newPoints, false); }} onDragEnd={() => { onUpdatePoints(data.id, data.points, true); }} onAddPoint={(newPoint) => { const newPoints = [...data.points, newPoint]; onUpdatePoints(data.id, newPoints, true); }} />)}</>) : data.type === 'polygon_floor' ? (<><PolygonFloorMesh points={data.points} color={data.color} opacity={data.opacity || 1} isSelected={isSelected} hovered={hovered && !isSelected} />{isSelected && isEditingPoints && (<CurveEditor points={data.points} onUpdatePoint={(idx, newPos) => { const newPoints = [...data.points]; newPoints[idx] = newPos; onUpdatePoints(data.id, newPoints, false); }} onDragEnd={() => { onUpdatePoints(data.id, newPoints, true); }} onAddPoint={(newPoint) => { const newPoints = [...data.points, newPoint]; onUpdatePoints(data.id, newPoints, true); }} />)}</>) : (
                     <React.Fragment>
-                        {data.modelUrl ? (<Suspense fallback={<mesh><boxGeometry args={[1, 1, 1]} /><meshBasicMaterial color="gray" wireframe /></mesh>}><Gltf key={data.modelUrl} src={data.modelUrl} castShadow receiveShadow scale={data.modelScale || 1} />{(isSelected || hovered) && <mesh><boxGeometry args={[1.05, 1.05, 1.05]} /><meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.3} /></mesh>}</Suspense>) : (<mesh castShadow receiveShadow>{(data.type === 'wall' || data.type === 'floor' || data.type === 'column' || data.type === 'door' || data.type === 'cnc' || data.type === 'cube' || data.type === 'custom_model') && (<boxGeometry args={[1, 1, 1]} />)}<meshStandardMaterial color={data.color} roughness={0.5} metalness={0.1} opacity={data.opacity || 1} transparent={(data.opacity || 1) < 1} emissive={!isFloorType && isSelected ? '#444' : (!isFloorType && hovered ? '#222' : '#000')} />{(isSelected || hovered) && <Edges threshold={15} scale={1.001} color={isSelected ? "#60a5fa" : "#ffffff"} />}</mesh>)}
+                        {data.modelUrl ? (<Suspense fallback={<mesh><boxGeometry args={[1, 1, 1]} /><meshBasicMaterial color="gray" wireframe /></mesh>}>{data.type === 'custom_model' ? (<AutoScaleGltf src={data.modelUrl} data={data} baseMapData={baseMapData} />) : (<Gltf key={data.modelUrl} src={data.modelUrl} castShadow receiveShadow scale={data.modelScale || 1} />)}{(isSelected || hovered) && !(data.type === 'custom_model' && data.locked) && <mesh><boxGeometry args={[1.05, 1.05, 1.05]} /><meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.3} /></mesh>}</Suspense>) : (<mesh castShadow receiveShadow>{(data.type === 'wall' || data.type === 'floor' || data.type === 'column' || data.type === 'door' || data.type === 'cnc' || data.type === 'cube' || data.type === 'custom_model') && (<boxGeometry args={[1, 1, 1]} />)}<meshStandardMaterial color={data.color} roughness={0.5} metalness={0.1} opacity={data.opacity || 1} transparent={(data.opacity || 1) < 1} emissive={!isFloorType && isSelected ? '#444' : (!isFloorType && hovered ? '#222' : '#000')} />{(isSelected || hovered) && <Edges threshold={15} scale={1.001} color={isSelected ? "#60a5fa" : "#ffffff"} />}</mesh>)}
                     </React.Fragment>
                 )}
-                {isSelected && !data.hideLabel && cameraView === 'perspective' && (
+                {isSelected && !data.hideLabel && !(data.type === 'custom_model' && data.locked) && cameraView === 'perspective' && (
                     <Html
                         position={[0, 2 + (data.scale[1] || 1), 0]}
                         center
@@ -1475,7 +1616,7 @@ const SceneObject = ({ data, isSelected, isEditingPoints, onSelect, transformMod
                     </Html>
                 )}
             </group>
-            {isSelected && !isEditingPoints && transformMode && (() => {
+            {isSelected && !isEditingPoints && !(data.type === 'custom_model' && data.locked) && transformMode && (() => {
                 // 根据视图模式决定显示哪些轴
                 const axisConfig = {
                     top: { showX: true, showY: false, showZ: true },      // 俯视图：XZ平面
@@ -2247,6 +2388,43 @@ const App = () => {
             if (saved) {
                 const data = JSON.parse(saved);
                 console.log('📦 从本地存储加载数据 (v' + CURRENT_VERSION + '):', data);
+                
+                // 🔑 迁移逻辑：修正底图位置和透明度
+                if (data.objects) {
+                    data.objects = data.objects.map(obj => {
+                        if (obj.type === 'map_image' && obj.isBaseMap) {
+                            console.log('🔧 修正objects中的底图:', obj.id);
+                            return {
+                                ...obj,
+                                position: [0, 0.1, 0], // Y=0.1，稍微高于地面
+                                opacity: 0.5 // 半透明
+                            };
+                        }
+                        return obj;
+                    });
+                }
+                
+                // 🔑 修正floors中每个楼层的底图
+                if (data.floors) {
+                    data.floors = data.floors.map(scene => ({
+                        ...scene,
+                        floorLevels: scene.floorLevels.map(floor => ({
+                            ...floor,
+                            objects: floor.objects?.map(obj => {
+                                if (obj.type === 'map_image' && obj.isBaseMap) {
+                                    console.log('🔧 修正floors中的底图:', obj.id);
+                                    return {
+                                        ...obj,
+                                        position: [0, 0.1, 0],
+                                        opacity: 0.5
+                                    };
+                                }
+                                return obj;
+                            }) || []
+                        }))
+                    }));
+                }
+                
                 return data;
             }
         } catch (error) {
@@ -2562,7 +2740,12 @@ const App = () => {
     }, []);
 
     const selectedObject = objects.find(o => o && o.id === selectedId);
-    const filteredObjects = objects.filter(obj => obj && ((obj.name && obj.name.toLowerCase().includes(searchQuery.toLowerCase())) || (obj.type && obj.type.toLowerCase().includes(searchQuery.toLowerCase()))));
+    const filteredObjects = objects.filter(obj => 
+        obj && 
+        // 🔑 隐藏锁定的GLB模型（地图模型）
+        !(obj.type === 'custom_model' && obj.locked) &&
+        ((obj.name && obj.name.toLowerCase().includes(searchQuery.toLowerCase())) || (obj.type && obj.type.toLowerCase().includes(searchQuery.toLowerCase())))
+    );
     const defaultAssets = [
         { type: 'wall', label: '标准墙体', icon: BrickWall, category: '建筑' },
         { type: 'door', label: '标准门', icon: DoorOpen, category: '建筑' },
@@ -3012,6 +3195,38 @@ const App = () => {
             console.log('📭 当前楼层没有对象');
         }
         
+        // 🔑 如果楼层有SLAM底图数据，创建底图对象
+        if (currentFloorLevel.baseMapData) {
+            console.log('🗺️ 楼层有SLAM底图，创建底图对象');
+            const mapData = currentFloorLevel.baseMapData;
+            const mapWidth = mapData.actualSize.width * mapData.resolution;
+            const mapHeight = mapData.actualSize.height * mapData.resolution;
+            
+            const baseMapObj = {
+                id: `map_${currentFloorLevel.id}`,
+                type: 'map_image',
+                name: mapData.name || 'SLAM底图',
+                position: [0, 0.1, 0], // 🔑 Y=0.1，稍微高于地面
+                rotation: [-Math.PI / 2, 0, 0],
+                scale: [mapWidth, 1, mapHeight],
+                color: '#ffffff',
+                opacity: 0.5, // 半透明
+                visible: currentFloorLevel.showBaseMap !== false, // 根据楼层配置决定是否显示
+                locked: false,
+                isBaseMap: true,
+                imageData: mapData.imageUrl || mapData.imageData
+            };
+            
+            console.log('🗺️ 从楼层数据创建底图对象:', baseMapObj);
+            
+            // 检查是否已经有这个底图对象
+            const hasBaseMap = validObjects.some(obj => obj.id === baseMapObj.id);
+            if (!hasBaseMap) {
+                validObjects.push(baseMapObj);
+                console.log('✅ 已添加SLAM底图对象到场景');
+            }
+        }
+        
         // 如果楼层有3D模型数据，创建模型对象
         if (currentFloorLevel.sceneModelData) {
             console.log('🏗️ 楼层有3D模型，创建模型对象');
@@ -3112,28 +3327,35 @@ const App = () => {
     // 自动保存到本地存储
     useEffect(() => {
         try {
-            // 🔑 过滤掉GLB模型的base64数据，只保存引用
+            // 🔑 过滤掉GLB模型和底图的base64数据，只保存引用
             const floorsToSave = floors.map(scene => ({
                 ...scene,
                 floorLevels: scene.floorLevels.map(floor => {
                     const floorCopy = { ...floor };
-                    // 如果有sceneModelData，只保存文件名，不保存base64 URL
-                    if (floorCopy.sceneModelData && floorCopy.sceneModelData.url?.startsWith('data:')) {
-                        floorCopy.sceneModelData = {
-                            ...floorCopy.sceneModelData,
-                            url: null, // 不保存base64数据
-                            _note: '需要重新上传GLB文件'
+                    
+                    // 🔑 GLB模型已上传到Supabase，URL是HTTP URL，不需要过滤
+                    
+                    // 如果有baseMapData，只保存元数据，不保存图片base64
+                    if (floorCopy.baseMapData && floorCopy.baseMapData.imageUrl?.startsWith('data:')) {
+                        floorCopy.baseMapData = {
+                            ...floorCopy.baseMapData,
+                            imageUrl: null, // 不保存base64图片
+                            _note: '已保存到Supabase'
                         };
                     }
+                    
                     return floorCopy;
                 })
             }));
+            
+            // 🔑 GLB模型已上传到Supabase，URL是HTTP URL，不需要过滤
+            const objectsToSave = objects;
             
             const dataToSave = {
                 floors: floorsToSave,
                 currentFloorId,
                 currentFloorLevelId,
-                objects,
+                objects: objectsToSave,
                 customAssets, // 保存自定义资产
                 timestamp: new Date().toISOString()
             };
@@ -3147,10 +3369,10 @@ const App = () => {
                 console.warn('⚠️ 存储空间不足，尝试不保存自定义资产...');
                 try {
                     const dataToSave = {
-                        floors,
+                        floors: floorsToSave,
                         currentFloorId,
                         currentFloorLevelId,
-                        objects,
+                        objects: objectsToSave,
                         timestamp: new Date().toISOString()
                     };
                     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
@@ -3898,22 +4120,17 @@ const App = () => {
             
             console.log('📐 底图尺寸:', mapWidth, 'x', mapHeight, '米');
             console.log('📍 底图原点:', jsonData.origin);
-            
-            // 底图中心位置 = origin + (width/2, height/2)
-            const mapCenterX = jsonData.origin.x + mapWidth / 2;
-            const mapCenterZ = jsonData.origin.y + mapHeight / 2;
-            
-            console.log('📍 底图中心:', [mapCenterX, 0, mapCenterZ]);
+            console.log('📍 底图居中在世界坐标 (0, 0, 0)');
             
             const baseMapObj = {
                 id: `map_${jsonData.id}`,
                 type: 'map_image',
                 name: jsonData.name || '地图底图',
-                position: [mapCenterX, -0.01, mapCenterZ], // 使用底图中心位置
+                position: [0, 0.1, 0], // 🔑 Y=0.1，稍微高于地面
                 rotation: [0, 0, 0],
                 scale: [mapWidth, 1, mapHeight],
                 color: '#ffffff',
-                opacity: 0.8,
+                opacity: 0.5, // 半透明，可以透过看到模型
                 visible: true,
                 locked: true,
                 isBaseMap: true,
@@ -3979,19 +4196,17 @@ const App = () => {
                 const mapWidth = record.width * record.resolution;
                 const mapHeight = record.height * record.resolution;
                 
-                // 计算底图中心位置
-                const mapCenterX = record.origin.x + mapWidth / 2;
-                const mapCenterZ = record.origin.y + mapHeight / 2;
-
+                // 🔑 底图始终居中在世界坐标原点，不受origin影响
+                // origin只用于GLB模型的对齐
                 const baseMapObj = {
                     id: `map_${record.uid}`,
                     type: 'map_image',
                     name: record.name || '地图底图',
-                    position: [mapCenterX, -0.01, mapCenterZ], // 使用底图中心
+                    position: [0, 0.1, 0], // Y=0.1，稍微高于地面
                     rotation: [0, 0, 0],
                     scale: [mapWidth, 1, mapHeight],
                     color: '#ffffff',
-                    opacity: 0.8,
+                    opacity: 0.5, // 半透明
                     visible: true,
                     locked: true,
                     isBaseMap: true,
@@ -4159,6 +4374,30 @@ const App = () => {
                     floorLevels: scene.floorLevels.map(floor => {
                         if (floor.id === currentFloorLevelId) {
                             console.log(`💾 将 ${newObjects.length} 个对象保存到楼层: ${floor.name}`);
+                            
+                            // 💾 保存底图数据到Supabase
+                            if (baseMapDataForGLB) {
+                                console.log('📤 准备保存底图数据到Supabase:', {
+                                    floorId: floor.id,
+                                    hasImageUrl: !!baseMapDataForGLB.imageUrl,
+                                    origin: baseMapDataForGLB.origin,
+                                    resolution: baseMapDataForGLB.resolution,
+                                    actualSize: baseMapDataForGLB.actualSize
+                                });
+                                
+                                saveBaseMap(floor.id, {
+                                    imageUrl: baseMapDataForGLB.imageUrl,
+                                    origin: baseMapDataForGLB.origin,
+                                    resolution: baseMapDataForGLB.resolution,
+                                    actualSize: baseMapDataForGLB.actualSize
+                                }).then(() => {
+                                    console.log('✅ 底图数据已保存到Supabase');
+                                }).catch(error => {
+                                    console.error('❌ 保存底图数据到Supabase失败:', error);
+                                    console.error('错误详情:', JSON.stringify(error, null, 2));
+                                });
+                            }
+                            
                             return {
                                 ...floor,
                                 objects: newObjects,
@@ -5096,46 +5335,80 @@ const App = () => {
                                                             <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
                                                                 上传地图 <span className="text-gray-600 font-normal">(JSON格式)</span>
                                                             </label>
-                                                            {floor.waypointsData || floor.pathsData ? (
-                                                                <div className="flex gap-2">
-                                                                    <div className="flex-1 bg-[#0e0e0e] border border-green-500/50 rounded px-2 py-1.5 flex items-center gap-1.5">
-                                                                        <Check size={12} className="text-green-400" />
-                                                                        <span className="text-[10px] text-green-400">已加载</span>
+                                                            {floor.baseMapData ? (
+                                                                <>
+                                                                    <div className="flex gap-2 mb-2">
+                                                                        <div className="flex-1 bg-[#0e0e0e] border border-green-500/50 rounded px-2 py-1.5 flex items-center gap-1.5">
+                                                                            <Check size={12} className="text-green-400" />
+                                                                            <span className="text-[10px] text-green-400">已加载</span>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setCurrentFloorLevelId(floor.id);
+                                                                                document.getElementById('floor-json-upload').click();
+                                                                            }}
+                                                                            className="px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
+                                                                            title="重新上传"
+                                                                        >
+                                                                            <RefreshCw size={12} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (confirm('确定清除此楼层的数据源吗？')) {
+                                                                                    setFloors(prev => prev.map(scene => {
+                                                                                        if (scene.id === currentFloorId) {
+                                                                                            return {
+                                                                                                ...scene,
+                                                                                                floorLevels: scene.floorLevels.map(fl => 
+                                                                                                    fl.id === floor.id 
+                                                                                                        ? { ...fl, waypointsData: null, pathsData: null, objects: [], baseMapData: null }
+                                                                                                        : fl
+                                                                                                )
+                                                                                            };
+                                                                                        }
+                                                                                        return scene;
+                                                                                    }));
+                                                                                }
+                                                                            }}
+                                                                            className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
+                                                                            title="清除"
+                                                                        >
+                                                                            <Trash2 size={12} />
+                                                                        </button>
                                                                     </div>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setCurrentFloorLevelId(floor.id);
-                                                                            document.getElementById('floor-json-upload').click();
-                                                                        }}
-                                                                        className="px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
-                                                                        title="重新上传"
-                                                                    >
-                                                                        <RefreshCw size={12} />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            if (confirm('确定清除此楼层的数据源吗？')) {
+                                                                    {/* 🔑 显示SLAM底图开关 */}
+                                                                    <label className="flex items-center gap-2 px-2 py-1.5 bg-[#0e0e0e] border border-[#2a2a2a] rounded cursor-pointer hover:border-blue-500/30 transition-all">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={floor.showBaseMap !== false}
+                                                                            onChange={(e) => {
+                                                                                const show = e.target.checked;
+                                                                                // 更新楼层配置
                                                                                 setFloors(prev => prev.map(scene => {
                                                                                     if (scene.id === currentFloorId) {
                                                                                         return {
                                                                                             ...scene,
                                                                                             floorLevels: scene.floorLevels.map(fl => 
                                                                                                 fl.id === floor.id 
-                                                                                                    ? { ...fl, waypointsData: null, pathsData: null, objects: [] }
+                                                                                                    ? { ...fl, showBaseMap: show }
                                                                                                     : fl
                                                                                             )
                                                                                         };
                                                                                     }
                                                                                     return scene;
                                                                                 }));
-                                                                            }
-                                                                        }}
-                                                                        className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
-                                                                        title="清除"
-                                                                    >
-                                                                        <Trash2 size={12} />
-                                                                    </button>
-                                                                </div>
+                                                                                // 更新场景中的底图对象可见性
+                                                                                setObjects(prev => prev.map(obj => 
+                                                                                    obj.id === `map_${floor.id}` && obj.type === 'map_image'
+                                                                                        ? { ...obj, visible: show }
+                                                                                        : obj
+                                                                                ));
+                                                                            }}
+                                                                            className="w-3.5 h-3.5 rounded border-gray-600 bg-[#1a1a1a] checked:bg-blue-500 checked:border-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                                                        />
+                                                                        <span className="text-[10px] text-gray-300">显示SLAM底图</span>
+                                                                    </label>
+                                                                </>
                                                             ) : (
                                                                 <button
                                                                     onClick={() => {
@@ -5260,10 +5533,37 @@ const App = () => {
                                                                     }
                                                                     
                                                                     try {
-                                                                        // 读取文件为base64
-                                                                        const reader = new FileReader();
-                                                                        reader.onload = async (event) => {
-                                                                            const url = event.target.result;
+                                                                        // 🔑 上传GLB模型到Supabase Storage
+                                                                        console.log('📤 开始上传GLB模型到Supabase Storage...');
+                                                                        
+                                                                        // 生成安全的文件名（移除中文和特殊字符）
+                                                                        const timestamp = Date.now();
+                                                                        const fileExt = file.name.split('.').pop();
+                                                                        const safeFileName = `glb-models/${timestamp}.${fileExt}`;
+                                                                        
+                                                                        console.log('📝 原始文件名:', file.name);
+                                                                        console.log('📝 安全文件名:', safeFileName);
+                                                                        
+                                                                        const { data: uploadData, error: uploadError } = await supabase.storage
+                                                                            .from('digital-twin-assets')
+                                                                            .upload(safeFileName, file, {
+                                                                                cacheControl: '3600',
+                                                                                upsert: false
+                                                                            });
+                                                                        
+                                                                        if (uploadError) {
+                                                                            console.error('❌ 上传GLB模型失败:', uploadError);
+                                                                            alert('上传模型失败: ' + uploadError.message);
+                                                                            return;
+                                                                        }
+                                                                        
+                                                                        // 获取公开URL
+                                                                        const { data: urlData } = supabase.storage
+                                                                            .from('digital-twin-assets')
+                                                                            .getPublicUrl(safeFileName);
+                                                                        
+                                                                        const url = urlData.publicUrl;
+                                                                        console.log('✅ GLB模型上传成功:', url);
                                                                             
                                                                             // 自动计算模型的缩放和位置
                                                                             let autoScale = [1, 1, 1];
@@ -5281,47 +5581,18 @@ const App = () => {
                                                                                 
                                                                                 console.log('  - 底图尺寸:', mapWidth, 'x', mapHeight, '米');
                                                                                 
-                                                                                // 加载GLB模型并计算边界框
-                                                                                try {
-                                                                                    const loader = new THREE.GLTFLoader();
-                                                                                    const gltf = await new Promise((resolve, reject) => {
-                                                                                        loader.load(url, resolve, undefined, reject);
-                                                                                    });
-                                                                                    
-                                                                                    // 计算模型的边界框
-                                                                                    const box = new THREE.Box3().setFromObject(gltf.scene);
-                                                                                    const modelSize = new THREE.Vector3();
-                                                                                    box.getSize(modelSize);
-                                                                                    
-                                                                                    console.log('  - 模型原始尺寸:', modelSize.x, 'x', modelSize.z, '(XZ平面)');
-                                                                                    
-                                                                                    // 计算缩放比例：底图尺寸 / 模型尺寸
-                                                                                    const scaleX = mapWidth / modelSize.x;
-                                                                                    const scaleZ = mapHeight / modelSize.z;
-                                                                                    
-                                                                                    // 使用较小的缩放比例，确保模型完全贴合底图
-                                                                                    const uniformScale = Math.min(scaleX, scaleZ);
-                                                                                    autoScale = [uniformScale, uniformScale, uniformScale];
-                                                                                    
-                                                                                    console.log('  - 缩放比例: X=' + scaleX.toFixed(3) + ', Z=' + scaleZ.toFixed(3));
-                                                                                    console.log('  - 统一缩放:', uniformScale.toFixed(3));
-                                                                                } catch (error) {
-                                                                                    console.warn('无法加载GLB模型计算边界框，使用默认缩放:', error);
-                                                                                    autoScale = [1, 1, 1];
-                                                                                }
+                                                                                // 🔑 先使用临时缩放，模型加载后会自动计算真实缩放
+                                                                                // 标记需要自动适配
+                                                                                autoScale = [1, 1, 1]; // 临时值，会在模型加载后更新
                                                                                 
-                                                                                // 关键：底图中心位置
-                                                                                // origin是底图左下角，加上一半尺寸得到中心
-                                                                                const mapCenterX = mapData.origin.x + mapWidth / 2;
-                                                                                const mapCenterZ = mapData.origin.y + mapHeight / 2;
+                                                                                console.log('📐 将在模型加载后自动计算缩放以适配底图');
                                                                                 
-                                                                                // 模型位置 = 底图中心（GLB模型原点在中心）
-                                                                                // Y轴稍微抬高一点，避免与底图重叠
-                                                                                autoPosition = [mapCenterX, 0.01, mapCenterZ];
+                                                                                // 🔑 底图居中在(0,0,0)，所以模型初始位置也是(0,0,0)
+                                                                                // 实际位置会在AutoScaleGltf组件中计算
+                                                                                autoPosition = [0, 0.01, 0];
                                                                                 
                                                                                 console.log('  - 底图原点:', [mapData.origin.x, mapData.origin.y]);
-                                                                                console.log('  - 底图中心:', [mapCenterX, mapCenterZ]);
-                                                                                
+                                                                                console.log('  - 底图居中在世界原点 (0, 0, 0)');
                                                                                 console.log('  - 自动缩放:', autoScale);
                                                                                 console.log('  - 自动位置:', autoPosition);
                                                                             } else {
@@ -5351,7 +5622,26 @@ const App = () => {
                                                                                 return scene;
                                                                             }));
                                                                             
+                                                                            // 💾 保存到Supabase（异步，不阻塞UI）
+                                                                            saveGLBModel(floor.id, {
+                                                                                fileName: file.name,
+                                                                                url: url,
+                                                                                scale: autoScale,
+                                                                                position: autoPosition
+                                                                            }).then(() => {
+                                                                                console.log('✅ GLB模型已保存到Supabase');
+                                                                            }).catch(error => {
+                                                                                console.error('❌ 保存GLB模型到Supabase失败:', error);
+                                                                                console.error('错误详情:', JSON.stringify(error, null, 2));
+                                                                            });
+                                                                            
                                                                             // 🔑 立即创建模型对象并添加到场景
+                                                                            console.log('🔍 检查是否添加到当前场景:', {
+                                                                                floorId: floor.id,
+                                                                                currentFloorLevelId: currentFloorLevelId,
+                                                                                match: floor.id === currentFloorLevelId
+                                                                            });
+                                                                            
                                                                             if (floor.id === currentFloorLevelId) {
                                                                                 console.log('💡 立即添加模型到当前场景');
                                                                                 const modelObj = {
@@ -5379,8 +5669,6 @@ const App = () => {
                                                                             }
                                                                             
                                                                             alert('✅ 3D模型已上传并显示\n\n缩放: 1:1 (原始尺寸)\n位置: 底图中心');
-                                                                        };
-                                                                        reader.readAsDataURL(file);
                                                                     } catch (error) {
                                                                         console.error('模型加载失败:', error);
                                                                         alert('模型加载失败: ' + error.message);
@@ -6481,6 +6769,7 @@ const App = () => {
                                     <SceneObject
                                         key={obj.id}
                                         data={obj}
+                                        baseMapData={currentFloorLevel?.baseMapData}
                                         isSelected={selectedIds.includes(obj.id) && !isPreviewMode}
                                         isEditingPoints={isEditingPoints && selectedIds.includes(obj.id)}
                                         onSelect={(id, shiftKey) => {
