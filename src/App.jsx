@@ -5262,17 +5262,18 @@ const App = () => {
                                                                     try {
                                                                         // 读取文件为base64
                                                                         const reader = new FileReader();
-                                                                        reader.onload = (event) => {
+                                                                        reader.onload = async (event) => {
                                                                             const url = event.target.result;
                                                                             
-                                                                            // 🔑 自动计算模型的缩放和位置
+                                                                            // 自动计算模型的缩放和位置
                                                                             let autoScale = [1, 1, 1];
                                                                             let autoPosition = [0, 0, 0];
                                                                             
-                                                                            // 如果楼层有底图数据，根据底图尺寸计算
-                                                                            if (floor.baseMapData) {
-                                                                                const mapData = floor.baseMapData;
-                                                                                console.log('📐 根据底图数据自动计算模型变换:', mapData);
+                                                                            // 获取当前楼层的底图数据
+                                                                            const mapData = floor.baseMapData;
+                                                                            
+                                                                            if (mapData) {
+                                                                                console.log('根据底图数据自动计算模型变换:', mapData);
                                                                                 
                                                                                 // 计算底图的实际尺寸（米）
                                                                                 const mapWidth = mapData.actualSize.width * mapData.resolution;
@@ -5280,11 +5281,36 @@ const App = () => {
                                                                                 
                                                                                 console.log('  - 底图尺寸:', mapWidth, 'x', mapHeight, '米');
                                                                                 
-                                                                                // 假设GLB模型已经是实际尺寸，只需要小幅缩放
-                                                                                // 使用1作为默认缩放，让模型保持原始尺寸
-                                                                                autoScale = [1, 1, 1];
+                                                                                // 加载GLB模型并计算边界框
+                                                                                try {
+                                                                                    const loader = new THREE.GLTFLoader();
+                                                                                    const gltf = await new Promise((resolve, reject) => {
+                                                                                        loader.load(url, resolve, undefined, reject);
+                                                                                    });
+                                                                                    
+                                                                                    // 计算模型的边界框
+                                                                                    const box = new THREE.Box3().setFromObject(gltf.scene);
+                                                                                    const modelSize = new THREE.Vector3();
+                                                                                    box.getSize(modelSize);
+                                                                                    
+                                                                                    console.log('  - 模型原始尺寸:', modelSize.x, 'x', modelSize.z, '(XZ平面)');
+                                                                                    
+                                                                                    // 计算缩放比例：底图尺寸 / 模型尺寸
+                                                                                    const scaleX = mapWidth / modelSize.x;
+                                                                                    const scaleZ = mapHeight / modelSize.z;
+                                                                                    
+                                                                                    // 使用较小的缩放比例，确保模型完全贴合底图
+                                                                                    const uniformScale = Math.min(scaleX, scaleZ);
+                                                                                    autoScale = [uniformScale, uniformScale, uniformScale];
+                                                                                    
+                                                                                    console.log('  - 缩放比例: X=' + scaleX.toFixed(3) + ', Z=' + scaleZ.toFixed(3));
+                                                                                    console.log('  - 统一缩放:', uniformScale.toFixed(3));
+                                                                                } catch (error) {
+                                                                                    console.warn('无法加载GLB模型计算边界框，使用默认缩放:', error);
+                                                                                    autoScale = [1, 1, 1];
+                                                                                }
                                                                                 
-                                                                                // 🔑 关键：底图中心位置
+                                                                                // 关键：底图中心位置
                                                                                 // origin是底图左下角，加上一半尺寸得到中心
                                                                                 const mapCenterX = mapData.origin.x + mapWidth / 2;
                                                                                 const mapCenterZ = mapData.origin.y + mapHeight / 2;
