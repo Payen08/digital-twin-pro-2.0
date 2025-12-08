@@ -868,11 +868,15 @@ const Interactive2DObject = ({ obj, isSelected, transformMode, toolMode, onSelec
                     perspective: { showX: true, showY: true, showZ: true } // 透视图：全部显示
                 };
                 const { showX, showY, showZ } = axisConfig[cameraView] || axisConfig.perspective;
+                const currentMode = transformMode || 'translate';
+                
+                // 调试：显示当前模式
+                console.log('🎯 TransformControls mode:', currentMode, 'for object:', obj.id);
                 
                 return (
                     <TransformControls
                         object={groupRef}
-                        mode={transformMode || 'translate'}
+                        mode={currentMode}
                         size={0.8}
                         showX={showX}
                         showY={showY}
@@ -6474,7 +6478,11 @@ const App = () => {
                             onClick={() => { 
                                 setToolMode('select'); 
                                 // 在translate和rotate之间切换
-                                setTransformMode(prev => prev === 'rotate' ? 'translate' : 'rotate'); 
+                                setTransformMode(prev => {
+                                    const newMode = prev === 'rotate' ? 'translate' : 'rotate';
+                                    console.log('🔧 切换变换模式:', prev, '->', newMode);
+                                    return newMode;
+                                }); 
                                 setIsBoxSelecting(false); 
                             }} 
                             title={`变换 (${transformMode === 'rotate' ? '旋转' : '移动'}) - 点击切换 或 按W/E`} 
