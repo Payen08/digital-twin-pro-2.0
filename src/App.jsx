@@ -1471,6 +1471,12 @@ const AutoScaleGltf = ({ src, data, baseMapData, onScaleCalculated }) => {
                 }
                 
                 // 从传入的baseMapData获取底图尺寸和原点
+                // 🔑 安全检查：确保actualSize存在
+                if (!baseMapData.actualSize || !baseMapData.resolution) {
+                    console.warn('⚠️ 底图数据不完整，无法自动适配');
+                    return;
+                }
+                
                 const mapWidth = baseMapData.actualSize.width * baseMapData.resolution;
                 const mapHeight = baseMapData.actualSize.height * baseMapData.resolution;
                 const mapOrigin = baseMapData.origin;
@@ -2818,6 +2824,13 @@ const App = () => {
             console.log('🗺️ 添加底图:', baseMapObj.name, '尺寸:', mapWidth.toFixed(2), 'x', mapHeight.toFixed(2));
         } else if (floor.mapData) {
             const mapData = floor.mapData;
+            
+            // 🔑 安全检查：确保actualSize存在
+            if (!mapData.actualSize || !mapData.resolution) {
+                console.warn('⚠️ 底图数据不完整，跳过创建:', mapData);
+                return floorObjects;
+            }
+            
             const mapWidth = mapData.actualSize.width * mapData.resolution;
             const mapHeight = mapData.actualSize.height * mapData.resolution;
 
@@ -3199,6 +3212,13 @@ const App = () => {
         if (currentFloorLevel.baseMapData) {
             console.log('🗺️ 楼层有SLAM底图，创建底图对象');
             const mapData = currentFloorLevel.baseMapData;
+            
+            // 🔑 安全检查：确保actualSize存在
+            if (!mapData.actualSize || !mapData.resolution) {
+                console.warn('⚠️ 底图数据不完整，跳过创建:', mapData);
+                return validObjects;
+            }
+            
             const mapWidth = mapData.actualSize.width * mapData.resolution;
             const mapHeight = mapData.actualSize.height * mapData.resolution;
             
@@ -4115,6 +4135,14 @@ const App = () => {
             
             // 从URL加载图片
             const imageUrl = jsonData.imageData;
+            
+            // 🔑 安全检查：确保actualSize存在
+            if (!jsonData.actualSize || !jsonData.resolution) {
+                console.error('❌ 底图数据不完整，缺少actualSize或resolution');
+                alert('地图数据格式错误：缺少尺寸信息');
+                return;
+            }
+            
             const mapWidth = jsonData.actualSize.width * jsonData.resolution;
             const mapHeight = jsonData.actualSize.height * jsonData.resolution;
             
@@ -5575,9 +5603,11 @@ const App = () => {
                                                                             if (mapData) {
                                                                                 console.log('根据底图数据自动计算模型变换:', mapData);
                                                                                 
-                                                                                // 计算底图的实际尺寸（米）
-                                                                                const mapWidth = mapData.actualSize.width * mapData.resolution;
-                                                                                const mapHeight = mapData.actualSize.height * mapData.resolution;
+                                                                                // 🔑 安全检查：确保actualSize存在
+                                                                                if (mapData.actualSize && mapData.resolution) {
+                                                                                    // 计算底图的实际尺寸（米）
+                                                                                    const mapWidth = mapData.actualSize.width * mapData.resolution;
+                                                                                    const mapHeight = mapData.actualSize.height * mapData.resolution;
                                                                                 
                                                                                 console.log('  - 底图尺寸:', mapWidth, 'x', mapHeight, '米');
                                                                                 
@@ -5591,10 +5621,13 @@ const App = () => {
                                                                                 // 实际位置会在AutoScaleGltf组件中计算
                                                                                 autoPosition = [0, 0.01, 0];
                                                                                 
-                                                                                console.log('  - 底图原点:', [mapData.origin.x, mapData.origin.y]);
-                                                                                console.log('  - 底图居中在世界原点 (0, 0, 0)');
-                                                                                console.log('  - 自动缩放:', autoScale);
-                                                                                console.log('  - 自动位置:', autoPosition);
+                                                                                    console.log('  - 底图原点:', [mapData.origin.x, mapData.origin.y]);
+                                                                                    console.log('  - 底图居中在世界原点 (0, 0, 0)');
+                                                                                    console.log('  - 自动缩放:', autoScale);
+                                                                                    console.log('  - 自动位置:', autoPosition);
+                                                                                } else {
+                                                                                    console.warn('⚠️ 底图数据不完整，使用默认变换');
+                                                                                }
                                                                             } else {
                                                                                 console.log('⚠️ 楼层没有底图数据，使用默认变换');
                                                                             }
