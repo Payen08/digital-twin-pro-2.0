@@ -6468,9 +6468,18 @@ const App = () => {
                         {/* 绘制路径按钮 - 暂时隐藏 */}
                         {false && <ToolBtn icon={Spline} active={toolMode === 'draw_path'} onClick={() => { setToolMode('draw_path'); setTransformMode(null); }} title="绘制路径 (点击创建点/连接点)" />}
                         {false && <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>}
-                        <ToolBtn icon={Move} active={toolMode === 'select' && transformMode === 'translate'} onClick={() => { setToolMode('select'); setTransformMode('translate'); setIsBoxSelecting(false); }} title="移动" />
-                        <ToolBtn icon={RotateCw} active={toolMode === 'select' && transformMode === 'rotate'} onClick={() => { setToolMode('select'); setTransformMode('rotate'); }} title="旋转" />
-                        <ToolBtn icon={Maximize} active={toolMode === 'select' && transformMode === 'scale'} onClick={() => { setToolMode('select'); setTransformMode('scale'); }} title="缩放" />
+                        <ToolBtn 
+                            icon={transformMode === 'rotate' ? RotateCw : Move} 
+                            active={toolMode === 'select' && (transformMode === 'translate' || transformMode === 'rotate')} 
+                            onClick={() => { 
+                                setToolMode('select'); 
+                                // 在translate和rotate之间切换
+                                setTransformMode(prev => prev === 'rotate' ? 'translate' : 'rotate'); 
+                                setIsBoxSelecting(false); 
+                            }} 
+                            title={`变换 (${transformMode === 'rotate' ? '旋转' : '移动'}) - 点击切换 或 按W/E`} 
+                        />
+                        <ToolBtn icon={Maximize} active={toolMode === 'select' && transformMode === 'scale'} onClick={() => { setToolMode('select'); setTransformMode('scale'); }} title="缩放 (R)" />
                         <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
                         <ToolBtn icon={ArrowDownToLine} onClick={snapObjectToGround} title="贴齐地面" />
                         <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
