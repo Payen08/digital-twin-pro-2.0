@@ -5198,13 +5198,19 @@ const App = () => {
                             <div className="mb-4">
                                 <button
                                     onClick={() => {
-                                        // 打开新增场景对话框
+                                        // 打开新增场景对话框，默认包含一个1F楼层
                                         setEditingFloor({
                                             id: Date.now().toString(),
-                                            name: `场景 ${floors.length}`,
+                                            name: `场景 ${floors.length + 1}`,
                                             description: '',
                                             mapPath: currentMapPath || availableMaps[0]?.path,
-                                            isNew: true
+                                            isNew: true,
+                                            floorLevels: [{
+                                                id: Date.now().toString(),
+                                                name: '1F',
+                                                objects: [],
+                                                baseMapData: null
+                                            }]
                                         });
                                     }}
                                     className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
@@ -5296,10 +5302,10 @@ const App = () => {
                             </div>
 
                             {/* 楼层管理区域 */}
-                            {!editingFloor.isNew && currentScene && currentScene.floorLevels && (
-                                <div className="border-t border-[#2a2a2a] pt-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <label className="text-xs text-gray-400">楼层管理</label>
+                            <div className="border-t border-[#2a2a2a] pt-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <label className="text-xs text-gray-400">楼层管理</label>
+                                    {!editingFloor.isNew && (
                                         <button
                                             onClick={() => {
                                                 const newName = prompt('新楼层名称:', `${currentScene.floorLevels.length + 1}F`);
@@ -5310,9 +5316,10 @@ const App = () => {
                                             <Plus size={12} />
                                             <span>新增楼层</span>
                                         </button>
-                                    </div>
+                                    )}
+                                </div>
                                     <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-                                        {currentScene.floorLevels.map((floor) => (
+                                        {(editingFloor.isNew ? editingFloor.floorLevels : currentScene?.floorLevels || []).map((floor) => (
                                             <div
                                                 key={floor.id}
                                                 className="bg-[#1a1a1a] rounded-lg overflow-hidden"
@@ -5723,8 +5730,7 @@ const App = () => {
                                             </div>
                                         ))}
                                     </div>
-                                </div>
-                            )}
+                            </div>
                         </div>
 
                         <div className="p-4 border-t border-[#2a2a2a] flex gap-2 justify-end flex-shrink-0 bg-[#161616]">
@@ -5749,25 +5755,25 @@ const App = () => {
 
                                         console.log('🚀 [新增场景] 创建空场景:', sceneName);
 
-                                        // 创建新场景，只包含一个空的1F楼层
+                                        // 创建新场景，使用对话框中配置的楼层
                                         const newFloor = {
                                             id: uuidv4(),
                                             name: sceneName,
                                             description: '空场景',
                                             isDefault: false,
-                                            // 🏢 楼层列表：创建默认的1F楼层（空的）
-                                            floorLevels: [{
-                                                id: `floor-${Date.now()}`, // 使用唯一ID
-                                                name: '1F',
+                                            // 🏢 楼层列表：使用对话框中的楼层配置
+                                            floorLevels: editingFloor.floorLevels.map(floor => ({
+                                                ...floor,
+                                                id: floor.id || `floor-${Date.now()}-${Math.random()}`,
                                                 height: 0,
                                                 visible: true,
-                                                objects: [], // 空数组，不包含任何对象
-                                                baseMapData: null,
+                                                objects: floor.objects || [],
+                                                baseMapData: floor.baseMapData || null,
                                                 baseMapId: null,
                                                 waypointsData: null,
                                                 pathsData: null,
                                                 sceneModelData: null
-                                            }]
+                                            }))
                                         };
 
                                         // 添加到场景列表
