@@ -4527,7 +4527,8 @@ const App = () => {
             if (json.mapfileEntitys || json.graphTopologys) {
                 console.log('🗺️ 检测到地图JSON，开始加载...');
                 loadMapFromJSON(json);
-                alert('✅ 地图导入成功！\n已加载底图、点位和路径。');
+                // 移除成功弹窗，后台自动上传
+                console.log('✅ 地图导入成功！已加载底图、点位和路径。');
                 e.target.value = '';
                 return;
             }
@@ -5221,19 +5222,16 @@ const App = () => {
                             </div>
 
                             <div className="space-y-3">
-                                {floors.map((floor, index) => (
+                                {floors.filter(floor => !floor.isDefault).map((floor, index) => (
                                     <div key={floor.id} className="bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] p-4">
                                         <div className="flex items-start justify-between mb-2">
                                             <div className="flex-1">
                                                 <h4 className="text-sm font-bold text-white mb-1">
                                                     {floor.name}
-                                                    {floor.isDefault && <span className="ml-2 text-[10px] text-gray-500">(默认)</span>}
                                                 </h4>
-                                                <p className="text-xs text-gray-400">{floor.description}</p>
-                                                <p className="text-[10px] text-gray-600 mt-1">
-                                                    对象: {floor.objects?.length || 0} |
-                                                    地图: {floor.baseMapData ? '✓' : '✗'} |
-                                                    模型: {floor.sceneModelData ? '✓' : '✗'}
+                                                <p className="text-[10px] text-gray-500 mt-1">
+                                                    创建时间: {floor.createdAt ? new Date(floor.createdAt).toLocaleString('zh-CN') : '未知'} | 
+                                                    创建人: {floor.createdBy || '未知'}
                                                 </p>
                                             </div>
                                             <div className="flex gap-1">
@@ -5411,19 +5409,16 @@ const App = () => {
                                                             {floor.baseMapData ? (
                                                                 <>
                                                                     <div className="flex gap-2 mb-2">
-                                                                        <div className="flex-1 bg-[#0e0e0e] border border-green-500/50 rounded px-2 py-1.5 flex items-center gap-1.5">
-                                                                            <Check size={12} className="text-green-400" />
-                                                                            <span className="text-[10px] text-green-400">已加载</span>
-                                                                        </div>
                                                                         <button
                                                                             onClick={() => {
                                                                                 setCurrentFloorLevelId(floor.id);
                                                                                 document.getElementById('floor-json-upload').click();
                                                                             }}
-                                                                            className="px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
-                                                                            title="重新上传"
+                                                                            className="flex-1 bg-[#0e0e0e] border border-green-500/50 rounded px-2 py-1.5 flex items-center gap-1.5 hover:bg-green-900/10 transition-all cursor-pointer"
+                                                                            title="点击重新上传"
                                                                         >
-                                                                            <RefreshCw size={12} />
+                                                                            <Check size={12} className="text-green-400" />
+                                                                            <span className="text-[10px] text-green-400 truncate">{floor.baseMapData.name || '地图文件.json'}</span>
                                                                         </button>
                                                                         <button
                                                                             onClick={() => {
@@ -5450,7 +5445,7 @@ const App = () => {
                                                                         </button>
                                                                     </div>
                                                                     {/* 🔑 显示SLAM底图开关 */}
-                                                                    <label className="flex items-center gap-2 px-2 py-1.5 bg-[#0e0e0e] border border-[#2a2a2a] rounded cursor-pointer hover:border-blue-500/30 transition-all">
+                                                                    <label className="flex items-center gap-2 px-2 py-1.5 cursor-pointer">
                                                                         <input
                                                                             type="checkbox"
                                                                             checked={floor.showBaseMap !== false}
@@ -5532,19 +5527,16 @@ const App = () => {
                                                             </label>
                                                             {floor.sceneModelData ? (
                                                                 <div className="flex gap-2">
-                                                                    <div className="flex-1 bg-[#0e0e0e] border border-purple-500/50 rounded px-2 py-1.5 flex items-center gap-1.5">
-                                                                        <Check size={12} className="text-purple-400" />
-                                                                        <span className="text-[10px] text-purple-400">已加载</span>
-                                                                    </div>
                                                                     <button
                                                                         onClick={() => {
                                                                             setCurrentFloorLevelId(floor.id);
                                                                             document.getElementById(`floor-glb-upload-${floor.id}`).click();
                                                                         }}
-                                                                        className="px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
-                                                                        title="重新上传"
+                                                                        className="flex-1 bg-[#0e0e0e] border border-purple-500/50 rounded px-2 py-1.5 flex items-center gap-1.5 hover:bg-purple-900/10 transition-all cursor-pointer"
+                                                                        title="点击重新上传"
                                                                     >
-                                                                        <RefreshCw size={12} />
+                                                                        <Check size={12} className="text-purple-400" />
+                                                                        <span className="text-[10px] text-purple-400 truncate">{floor.sceneModelData.name || '模型文件.glb'}</span>
                                                                     </button>
                                                                     <button
                                                                         onClick={() => {
@@ -5746,7 +5738,8 @@ const App = () => {
                                                                                 });
                                                                             }
                                                                             
-                                                                            alert('✅ 3D模型已上传并显示\n\n缩放: 1:1 (原始尺寸)\n位置: 底图中心');
+                                                                            // 移除成功弹窗，后台自动上传
+                                                                            console.log('✅ 3D模型已上传并显示');
                                                                     } catch (error) {
                                                                         console.error('模型加载失败:', error);
                                                                         alert('模型加载失败: ' + error.message);
@@ -5797,8 +5790,10 @@ const App = () => {
                                         const newFloor = {
                                             id: uuidv4(),
                                             name: sceneName,
-                                            description: '空场景',
+                                            description: '',
                                             isDefault: false,
+                                            createdAt: new Date().toISOString(),
+                                            createdBy: '当前用户', // TODO: 替换为实际用户名
                                             // 🏢 楼层列表：使用对话框中的楼层配置
                                             floorLevels: editingFloor.floorLevels.map(floor => ({
                                                 ...floor,
@@ -5814,8 +5809,32 @@ const App = () => {
                                             }))
                                         };
 
-                                        // 添加到场景列表
+                                        // 检查是否需要显示冲突确认对话框
                                         const hasOnlyDefaultScene = floors.length === 1 && floors[0].isDefault;
+                                        const defaultSceneHasContent = objects.some(obj => 
+                                            !obj.isBaseMap && 
+                                            obj.type !== 'waypoint' && 
+                                            obj.type !== 'path_line' && 
+                                            !obj.sourceRefId
+                                        );
+
+                                        if (hasOnlyDefaultScene && defaultSceneHasContent) {
+                                            // 默认场景有内容，显示确认对话框
+                                            console.log('⚠️ 默认场景有内容，显示确认对话框');
+                                            setPendingNewSceneData({
+                                                newFloor,
+                                                finalObjects: [],
+                                                newEntities: [],
+                                                newPaths: [],
+                                                baseMap: null,
+                                                sceneModelObj: null
+                                            });
+                                            setShowOverwriteConfirmDialog(true);
+                                            setEditingFloor(null);
+                                            return;
+                                        }
+
+                                        // 直接添加场景（没有冲突）
                                         if (hasOnlyDefaultScene) {
                                             // 替换默认场景
                                             setFloors([newFloor]);
@@ -5829,7 +5848,7 @@ const App = () => {
                                         setEditingFloor(null);
                                         setShowFloorManager(false);
 
-                                        alert(`✅ 场景创建成功\n\n场景名称: ${sceneName}\n已创建默认楼层: 1F\n\n请在"编辑场景"中为楼层添加地图数据。`);
+                                        console.log(`✅ 场景创建成功: ${sceneName}`);
                                         return;
                                     }
 
