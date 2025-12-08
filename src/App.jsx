@@ -5305,18 +5305,36 @@ const App = () => {
                             <div className="border-t border-[#2a2a2a] pt-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <label className="text-xs text-gray-400">楼层管理</label>
-                                    {!editingFloor.isNew && (
-                                        <button
-                                            onClick={() => {
+                                    <button
+                                        onClick={() => {
+                                            if (editingFloor.isNew) {
+                                                // 新增场景：直接添加到editingFloor.floorLevels
+                                                const newName = prompt('新楼层名称:', `${editingFloor.floorLevels.length + 1}F`);
+                                                if (newName) {
+                                                    setEditingFloor({
+                                                        ...editingFloor,
+                                                        floorLevels: [
+                                                            ...editingFloor.floorLevels,
+                                                            {
+                                                                id: Date.now().toString(),
+                                                                name: newName,
+                                                                objects: [],
+                                                                baseMapData: null
+                                                            }
+                                                        ]
+                                                    });
+                                                }
+                                            } else {
+                                                // 编辑场景：使用原有的addFloorLevel函数
                                                 const newName = prompt('新楼层名称:', `${currentScene.floorLevels.length + 1}F`);
                                                 if (newName) addFloorLevel(newName);
-                                            }}
-                                            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all"
-                                        >
-                                            <Plus size={12} />
-                                            <span>新增楼层</span>
-                                        </button>
-                                    )}
+                                            }
+                                        }}
+                                        className="flex items-center gap-1 px-2 py-1 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all"
+                                    >
+                                        <Plus size={12} />
+                                        <span>新增楼层</span>
+                                    </button>
                                 </div>
                                     <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
                                         {(editingFloor.isNew ? editingFloor.floorLevels : currentScene?.floorLevels || []).map((floor) => (
@@ -5338,7 +5356,18 @@ const App = () => {
                                                         onClick={() => {
                                                             const newName = prompt('重命名楼层:', floor.name);
                                                             if (newName && newName.trim()) {
-                                                                renameFloorLevel(floor.id, newName.trim());
+                                                                if (editingFloor.isNew) {
+                                                                    // 新增场景：更新editingFloor.floorLevels
+                                                                    setEditingFloor({
+                                                                        ...editingFloor,
+                                                                        floorLevels: editingFloor.floorLevels.map(fl => 
+                                                                            fl.id === floor.id ? { ...fl, name: newName.trim() } : fl
+                                                                        )
+                                                                    });
+                                                                } else {
+                                                                    // 编辑场景：使用原有函数
+                                                                    renameFloorLevel(floor.id, newName.trim());
+                                                                }
                                                             }
                                                         }}
                                                         className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded transition-all"
@@ -5346,11 +5375,20 @@ const App = () => {
                                                     >
                                                         <Edit3 size={12} />
                                                     </button>
-                                                    {currentScene.floorLevels.length > 1 && (
+                                                    {((editingFloor.isNew ? editingFloor.floorLevels : currentScene?.floorLevels || []).length > 1) && (
                                                         <button
                                                             onClick={() => {
                                                                 if (confirm(`确定删除楼层 "${floor.name}" 吗？\n该楼层的所有对象也会被删除。`)) {
-                                                                    deleteFloorLevel(floor.id);
+                                                                    if (editingFloor.isNew) {
+                                                                        // 新增场景：从 editingFloor.floorLevels 中删除
+                                                                        setEditingFloor({
+                                                                            ...editingFloor,
+                                                                            floorLevels: editingFloor.floorLevels.filter(fl => fl.id !== floor.id)
+                                                                        });
+                                                                    } else {
+                                                                        // 编辑场景：使用原有函数
+                                                                        deleteFloorLevel(floor.id);
+                                                                    }
                                                                 }
                                                             }}
                                                             className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
