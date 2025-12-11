@@ -8104,43 +8104,7 @@ const App = () => {
                                                 </div>
                                             </div>
                                         )}
-                                        {['cnc', 'floor', 'custom_model'].includes(selectedObject.type) && (
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Ruler size={12} className="text-gray-500" />
-                                                    <span className="text-[10px] text-gray-500 font-bold uppercase">尺寸</span>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">X</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[0].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">Y</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[1].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">Z</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[2].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
+
                                     </div>
                                 </div>
                                 {!isEditingPoints && selectedObject.type !== 'path' && (<><div>
@@ -8217,45 +8181,6 @@ const App = () => {
                                                             onChange={(val) => updateTransform(selectedId, 'rotation', 2, val * Math.PI / 180)}
                                                             suffix="°"
                                                             step={1}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* 缩放 Scale - 点不显示 */}
-                                        {selectedObject.type !== 'point' && (
-                                            <div className="space-y-2 pt-3 border-t border-[#1a1a1a]">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Maximize size={12} className="text-gray-500" />
-                                                    <span className="text-[10px] text-gray-500 font-bold uppercase">缩放</span>
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">X</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[0].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">Y</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[1].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">Z</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[2].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
-                                                            min={0.01}
-                                                            className=""
                                                         />
                                                     </div>
                                                 </div>
