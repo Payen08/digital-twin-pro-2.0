@@ -13,12 +13,6 @@ export default defineConfig(({ command }) => {
     server: {
       port: 1080,
       open: true
-    },
-
-    // 构建配置 - 暂时禁用压缩以便调试
-    build: {
-      minify: false,
-      sourcemap: true
     }
   }
 })
