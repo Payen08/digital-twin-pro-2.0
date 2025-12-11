@@ -38,15 +38,15 @@ const Gltf = ({ src, ...props }) => {
 };
 
 // 递归渲染层级列表项组件
-const LayerItem = ({
-    obj,
-    allObjects,
-    selectedIds,
-    editingNameId,
+const LayerItem = ({ 
+    obj, 
+    allObjects, 
+    selectedIds, 
+    editingNameId, 
     editingName,
     setEditingName,
-    setToolMode,
-    setSelectedId,
+    setToolMode, 
+    setSelectedId, 
     setSelectedIds,
     startEditingName,
     saveEditingName,
@@ -56,7 +56,7 @@ const LayerItem = ({
     const [isExpanded, setIsExpanded] = useState(true); // 展开/收起状态
     const isGroup = obj.type === 'group';
     const children = isGroup ? allObjects.filter(child => child.parentId === obj.id) : [];
-
+    
     // 递归计算所有后代对象的数量（排除组合）
     const countDescendants = (parentId) => {
         const directChildren = allObjects.filter(child => child.parentId === parentId);
@@ -66,9 +66,9 @@ const LayerItem = ({
         });
         return count;
     };
-
+    
     const actualObjectsCount = isGroup ? countDescendants(obj.id) : 0;
-
+    
     // 调试日志
     if (isGroup && obj.name.includes('组合')) {
         console.log(`🔍 ${obj.name}:`, {
@@ -78,17 +78,17 @@ const LayerItem = ({
             children: children.map(c => ({ name: c.name, type: c.type, parentId: c.parentId }))
         });
     }
-
+    
     return (
         <div>
-            <div
+            <div 
                 onClick={(e) => {
                     if (!obj.locked) {
                         setToolMode('select');
                         if (e.shiftKey) {
                             // Shift+点击：多选模式，只选中对象本身（不包含子对象）
-                            const newIds = selectedIds.includes(obj.id)
-                                ? selectedIds.filter(id => id !== obj.id)
+                            const newIds = selectedIds.includes(obj.id) 
+                                ? selectedIds.filter(id => id !== obj.id) 
                                 : [...selectedIds, obj.id];
                             setSelectedIds(newIds);
                             setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
@@ -111,10 +111,11 @@ const LayerItem = ({
                         startEditingName(obj.id, obj.name);
                     }
                 }}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors ${selectedIds.includes(obj.id)
-                    ? 'bg-blue-900/30 text-blue-100 border-l-2 border-blue-500'
-                    : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300 border-l-2 border-transparent'
-                    } ${obj.locked ? 'opacity-50' : ''}`}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-[11px] transition-colors ${
+                    selectedIds.includes(obj.id) 
+                        ? 'bg-blue-900/30 text-blue-100 border-l-2 border-blue-500' 
+                        : 'text-gray-500 hover:bg-[#1a1a1a] hover:text-gray-300 border-l-2 border-transparent'
+                } ${obj.locked ? 'opacity-50' : ''}`}
             >
                 {/* 展开/收起按钮 - 仅对组显示 */}
                 {isGroup && children.length > 0 && (
@@ -129,7 +130,7 @@ const LayerItem = ({
                         {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </button>
                 )}
-
+                
                 <div className="min-w-[16px] flex justify-center">
                     {obj.isBaseMap ? (
                         <Map size={12} className="text-blue-400" />
@@ -169,21 +170,21 @@ const LayerItem = ({
                 )}
                 {!obj.isBaseMap && (
                     <>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                updateObject(obj.id, 'locked', !obj.locked);
-                            }}
-                            className="hover:text-white p-1 rounded hover:bg-[#333]"
+                        <button 
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                updateObject(obj.id, 'locked', !obj.locked); 
+                            }} 
+                            className="hover:text-white p-1 rounded hover:bg-[#333]" 
                             title={obj.locked ? "解锁" : "锁定"}
                         >
                             {obj.locked ? <Lock size={10} /> : <Unlock size={10} />}
                         </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                updateObject(obj.id, 'visible', !obj.visible);
-                            }}
+                        <button 
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                updateObject(obj.id, 'visible', !obj.visible); 
+                            }} 
                             className="hover:text-white p-1 rounded hover:bg-[#333]"
                         >
                             {obj.visible ? <Eye size={10} /> : <EyeOff size={10} />}
@@ -191,7 +192,7 @@ const LayerItem = ({
                     </>
                 )}
             </div>
-
+            
             {/* 子对象列表 - 只在展开时显示 */}
             {isGroup && children.length > 0 && isExpanded && (
                 <div className="ml-6 mt-0.5 space-y-0.5 border-l-2 border-gray-600 pl-3">
@@ -859,16 +860,38 @@ const Interactive2DObject = ({ obj, isSelected, transformMode, toolMode, onSelec
             </group>
 
             {/* 2D模式下的变换控制器 - 选中时默认显示移动箭头 */}
-            {isSelected && toolMode === 'select' && (
-                <DualModeTransformControls
-                    object={groupRef}
-                    onTransformEnd={(transform) => {
-                        onTransformEnd(obj.id, transform);
+            {isSelected && toolMode === 'select' && (() => {
+                // 根据视图模式决定显示哪些轴
+                const axisConfig = {
+                    top: { showX: true, showY: false, showZ: true },      // 俯视图：XZ平面
+                    front: { showX: true, showY: true, showZ: false },    // 正视图：XY平面
+                    perspective: { showX: true, showY: true, showZ: true } // 透视图：全部显示
+                };
+                const { showX, showY, showZ } = axisConfig[cameraView] || axisConfig.perspective;
+                
+                return (
+                    <TransformControls
+                        object={groupRef}
+                        mode={transformMode || 'translate'}
+                        size={0.8}
+                        showX={showX}
+                        showY={showY}
+                        showZ={showZ}
+                        translationSnap={enableSnap ? 1 : null}
+                        rotationSnap={enableSnap ? THREE.MathUtils.degToRad(15) : null}
+                    onMouseUp={() => {
+                        if (groupRef.current) {
+                            const { position, rotation, scale } = groupRef.current;
+                            onTransformEnd(obj.id, {
+                                position: [position.x, position.y, position.z],
+                                rotation: [rotation.x, rotation.y, rotation.z],
+                                scale: [scale.x, scale.y, scale.z]
+                            });
+                        }
                     }}
-                    cameraView={cameraView}
-                    enableSnap={enableSnap}
                 />
-            )}
+                );
+            })()}
         </group>
     );
 };
@@ -1403,117 +1426,117 @@ const AutoScaleGltf = ({ src, data, baseMapData, onScaleCalculated }) => {
     const [model, setModel] = useState(null);
     const [scale, setScale] = useState([1, 1, 1]);
     const [position, setPosition] = useState([0, 0, 0]);
-
+    
     console.log('🔍 AutoScaleGltf 组件渲染:', { src, locked: data.locked, name: data.name, hasBaseMapData: !!baseMapData });
-
+    
     useEffect(() => {
         console.log('🔍 AutoScaleGltf useEffect 触发:', { locked: data.locked, type: data.type, baseMapData });
-
+        
         // 🔑 只对 custom_model 类型的模型自动缩放
         if (data.type !== 'custom_model') {
             console.log('⚠️ 不是 custom_model 类型，跳过自动缩放');
             return;
         }
-
+        
         if (!baseMapData) {
             console.log('⚠️ 没有底图数据，跳过自动缩放');
             return;
         }
-
+        
         console.log('🚀 开始自动拉伸适配...');
-
+        
         const loader = new GLTFLoader();
-
+        
         // 配置DRACO解码器
         const dracoLoader = new DRACOLoader();
         dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
         loader.setDRACOLoader(dracoLoader);
-
+        
         loader.load(
             src,
             (gltf) => {
                 const loadedModel = gltf.scene;
-
+                
                 // 步骤1: 完全重置模型变换
                 loadedModel.position.set(0, 0, 0);
                 loadedModel.rotation.set(0, 0, 0);
                 loadedModel.scale.set(1, 1, 1);
                 loadedModel.updateMatrixWorld(true);
-
+                
                 // 检查baseMapData是否存在
                 if (!baseMapData || !baseMapData.actualSize) {
                     console.warn('⚠️ 没有底图数据，跳过自动缩放');
                     setModel(loadedModel);
                     return;
                 }
-
+                
                 // 从传入的baseMapData获取底图尺寸和原点
                 // 🔑 安全检查：确保actualSize存在
                 if (!baseMapData.actualSize || !baseMapData.resolution) {
                     console.warn('⚠️ 底图数据不完整，无法自动适配');
                     return;
                 }
-
+                
                 const mapWidth = baseMapData.actualSize.width * baseMapData.resolution;
                 const mapHeight = baseMapData.actualSize.height * baseMapData.resolution;
                 const mapOrigin = baseMapData.origin;
-
+                
                 if (mapWidth > 0 && mapHeight > 0) {
                     console.log('🚀 开始自动拉伸适配...');
                     console.log('📏 地图尺寸:', mapWidth.toFixed(2), 'x', mapHeight.toFixed(2), '米');
                     console.log('📍 地图原点:', mapOrigin);
                     console.log('📍 地图居中在世界坐标 (0, 0, 0)');
-
+                    
                     // 步骤2: 计算模型原始边界
                     const modelBox = new THREE.Box3().setFromObject(loadedModel);
                     const modelSize = modelBox.getSize(new THREE.Vector3());
-
+                    
                     console.log('📦 模型原始尺寸:', modelSize.x.toFixed(2), 'x', modelSize.y.toFixed(2), 'x', modelSize.z.toFixed(2));
-
+                    
                     // 步骤3: 计算独立的缩放比例（XZ拉伸撑满，Y保持比例）
                     const scaleX = mapWidth / modelSize.x;
                     const scaleZ = mapHeight / modelSize.z;
                     const scaleY = scaleX; // Y轴使用X轴的缩放，保持建筑高度比例
-
+                    
                     console.log('🔧 计算缩放比例:', scaleX.toFixed(4), ',', scaleY.toFixed(4), ',', scaleZ.toFixed(4));
                     console.log('   - 注意：X和Z独立缩放以撑满地图，Y使用X的缩放保持比例');
-
+                    
                     // 步骤4: 应用缩放
                     loadedModel.scale.set(scaleX, scaleY, scaleZ);
                     loadedModel.updateMatrixWorld(true);
-
+                    
                     // 步骤5: 重新计算缩放后的边界
                     const scaledBox = new THREE.Box3().setFromObject(loadedModel);
-
+                    
                     // 步骤6: 计算对齐偏移（让模型对齐到地图左下角）
                     // 🔑 底图现在居中在(0,0,0)，所以地图左下角是(-mapWidth/2, -mapHeight/2)
                     const mapMinX = -mapWidth / 2;
                     const mapMinZ = -mapHeight / 2;
-
+                    
                     const offsetX = mapMinX - scaledBox.min.x;
                     const offsetY = -scaledBox.min.y; // 让模型底部贴在Y=0平面
                     const offsetZ = mapMinZ - scaledBox.min.z;
-
+                    
                     console.log('📍 计算偏移量:', offsetX.toFixed(2), ',', offsetY.toFixed(2), ',', offsetZ.toFixed(2));
-
+                    
                     // 🔑 直接应用到模型上，而不是通过state
                     loadedModel.position.set(offsetX, offsetY, offsetZ);
-
+                    
                     console.log('✅ 自动拉伸适配完成！');
                     console.log('最终模型状态:', {
                         scale: [scaleX, scaleY, scaleZ],
                         position: [offsetX, offsetY, offsetZ]
                     });
-
+                    
                     // 🔑 回调通知父组件更新scale
-                    if (onScaleCalculated && typeof onScaleCalculated === 'function') {
+                    if (onScaleCalculated) {
                         onScaleCalculated({
                             scale: [scaleX, scaleY, scaleZ],
                             position: [offsetX, offsetY, offsetZ]
                         });
                     }
                 }
-
+                
                 setModel(loadedModel);
             },
             undefined,
@@ -1522,7 +1545,7 @@ const AutoScaleGltf = ({ src, data, baseMapData, onScaleCalculated }) => {
             }
         );
     }, [src]); // 🔑 只在src变化时重新加载模型
-
+    
     if (!model) {
         return (
             <mesh>
@@ -1531,7 +1554,7 @@ const AutoScaleGltf = ({ src, data, baseMapData, onScaleCalculated }) => {
             </mesh>
         );
     }
-
+    
     // 🔑 直接返回primitive，scale和position已经在useEffect中应用到model上了
     return <primitive object={model} />;
 };
@@ -1599,16 +1622,39 @@ const SceneObject = ({ data, baseMapData, isSelected, isEditingPoints, onSelect,
                     </Html>
                 )}
             </group>
-            {isSelected && !isEditingPoints && !(data.type === 'custom_model' && data.locked) && (
-                <DualModeTransformControls
-                    object={groupRef}
-                    onTransformEnd={(transform) => {
-                        onTransformEnd(data.id, transform);
-                    }}
-                    cameraView={cameraView}
-                    enableSnap={enableSnap}
-                />
-            )}
+            {isSelected && !isEditingPoints && !(data.type === 'custom_model' && data.locked) && transformMode && (() => {
+                // 根据视图模式决定显示哪些轴
+                const axisConfig = {
+                    top: { showX: true, showY: false, showZ: true },      // 俯视图：XZ平面
+                    front: { showX: true, showY: true, showZ: false },    // 正视图：XY平面
+                    perspective: { showX: true, showY: true, showZ: true } // 透视图：全部显示
+                };
+                const { showX, showY, showZ } = axisConfig[cameraView] || axisConfig.perspective;
+                
+                return (
+                    <TransformControls 
+                        object={groupRef} 
+                        mode={transformMode} 
+                        size={0.8} 
+                        space="local"
+                        showX={showX}
+                        showY={showY}
+                        showZ={showZ}
+                        translationSnap={enableSnap ? 1 : null}
+                        rotationSnap={enableSnap ? THREE.MathUtils.degToRad(15) : null}
+                        onMouseUp={() => { 
+                            if (groupRef.current) { 
+                                const { position, rotation, scale } = groupRef.current; 
+                                onTransformEnd(data.id, { 
+                                    position: [position.x, position.y, position.z], 
+                                    rotation: [rotation.x, rotation.y, rotation.z], 
+                                    scale: [scale.x, scale.y, scale.z] 
+                                }); 
+                            } 
+                        }} 
+                    />
+                );
+            })()}
         </>
     );
 };
@@ -1629,11 +1675,11 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
             // 使用relativePosition而不是绝对position
             const pos = child.relativePosition || [0, 0, 0];
             const scale = child.scale || [1, 1, 1];
-
+            
             minX = Math.min(minX, pos[0] - scale[0] / 2);
             minY = Math.min(minY, pos[1] - scale[1] / 2);
             minZ = Math.min(minZ, pos[2] - scale[2] / 2);
-
+            
             maxX = Math.max(maxX, pos[0] + scale[0] / 2);
             maxY = Math.max(maxY, pos[1] + scale[1] / 2);
             maxZ = Math.max(maxZ, pos[2] + scale[2] / 2);
@@ -1675,7 +1721,7 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
                 <boxGeometry args={bounds.size} />
                 <meshBasicMaterial visible={false} />
             </mesh>
-
+            
             {/* 选中时显示边框 - 相对于组中心偏移 */}
             {isSelected && (
                 <lineSegments position={bounds.center}>
@@ -1687,116 +1733,7 @@ const GroupBoundingBox = ({ group, children, isSelected, onSelect }) => {
     );
 };
 
-// 双模式变换控制器 - 同时显示移动和旋转（可选缩放）
-const DualModeTransformControls = ({ object, onTransformEnd, cameraView, enableSnap }) => {
-    const translateRef = useRef();
-    const rotateRef = useRef();
-    const scaleRef = useRef();
-    const [activeControl, setActiveControl] = useState(null); // 'translate', 'rotate', or 'scale'
-    const [showScale, setShowScale] = useState(false); // 是否显示缩放控制器
-
-    // 根据视图模式决定显示哪些轴
-    const axisConfig = {
-        top: { showX: true, showY: false, showZ: true },      // 俯视图：XZ平面
-        front: { showX: true, showY: true, showZ: false },    // 正视图：XY平面
-        perspective: { showX: true, showY: true, showZ: true } // 透视图：全部显示
-    };
-    const { showX, showY, showZ } = axisConfig[cameraView] || axisConfig.perspective;
-
-    // 监听键盘切换缩放模式
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            // 检查是否在输入框中
-            const activeEl = document.activeElement;
-            const isInInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
-            if (isInInput) return;
-
-            // 按 S 切换缩放模式
-            if (e.key === 's' || e.key === 'S') {
-                e.preventDefault();
-                setShowScale(prev => !prev);
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
-
-    // 处理变换结束
-    const handleTransformEnd = useCallback(() => {
-        if (object.current) {
-            const { position, rotation, scale } = object.current;
-            onTransformEnd({
-                position: [position.x, position.y, position.z],
-                rotation: [rotation.x, rotation.y, rotation.z],
-                scale: [scale.x, scale.y, scale.z]
-            });
-        }
-        setActiveControl(null);
-    }, [object, onTransformEnd]);
-
-    // 处理拖拽开始 - 禁用另一个控制器以避免冲突
-    const handleMouseDown = useCallback((controlType) => {
-        setActiveControl(controlType);
-    }, []);
-
-    return (
-        <>
-            {/* 旋转控制器 */}
-            <TransformControls
-                ref={rotateRef}
-                object={object}
-                mode="rotate"
-                size={0.8}
-                showX={showX}
-                showY={showY}
-                showZ={showZ}
-                rotationSnap={enableSnap ? THREE.MathUtils.degToRad(15) : null}
-                enabled={!showScale && (activeControl === null || activeControl === 'rotate')}
-                onMouseDown={() => handleMouseDown('rotate')}
-                onMouseUp={handleTransformEnd}
-            />
-
-            {/* 移动控制器 */}
-            <TransformControls
-                ref={translateRef}
-                object={object}
-                mode="translate"
-                size={1.2}
-                showX={showX}
-                showY={showY}
-                showZ={showZ}
-                translationSnap={enableSnap ? 1 : null}
-                enabled={!showScale && (activeControl === null || activeControl === 'translate')}
-                onMouseDown={() => handleMouseDown('translate')}
-                onMouseUp={handleTransformEnd}
-            />
-
-            {/* 缩放控制器 - 按 S 键显示 */}
-            {showScale && (
-                <TransformControls
-                    ref={scaleRef}
-                    object={object}
-                    mode="scale"
-                    size={1.0}
-                    showX={showX}
-                    showY={showY}
-                    showZ={showZ}
-                    scaleSnap={enableSnap ? 0.1 : null}
-                    enabled={activeControl === null || activeControl === 'scale'}
-                    onMouseDown={() => handleMouseDown('scale')}
-                    onMouseUp={handleTransformEnd}
-                />
-            )}
-        </>
-    );
-};
-
-
-
-
 // 多选组移动控制器 - 使用 drei TransformControls
-
 const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, onDragEnd, cameraView, enableSnap }) => {
     const { scene } = useThree();
     const groupRef = useRef();
@@ -1808,7 +1745,7 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
 
     // 计算中心点
     useEffect(() => {
-        if (!selectedObjects || selectedObjects.length === 0) return;
+        if (selectedObjects.length === 0) return;
 
         let sumX = 0, sumY = 0, sumZ = 0;
         selectedObjects.forEach(obj => {
@@ -1836,7 +1773,7 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
 
     // 创建临时组
     useEffect(() => {
-        if (!selectedObjects || selectedObjects.length === 0) return;
+        if (selectedObjects.length === 0) return;
 
         if (!groupRef.current) {
             groupRef.current = new THREE.Group();
@@ -1844,9 +1781,9 @@ const MultiSelectTransformControls = ({ selectedObjects, onDragStart, onDrag, on
         }
 
         groupRef.current.position.set(...center);
-    }, [center, scene, selectedObjects]);
+    }, [center, scene, selectedObjects.length]);
 
-    if (!selectedObjects || selectedObjects.length === 0) return null;
+    if (selectedObjects.length === 0) return null;
 
     // 根据视图模式决定显示哪些轴
     const axisConfig = {
@@ -1915,14 +1852,14 @@ const SidebarItem = ({ asset, onDragStart, onEdit }) => {
             className="flex items-center gap-3 p-2 mb-1 rounded-md cursor-grab hover:bg-[#222] active:cursor-grabbing transition-colors group"
         >
             <div className="text-gray-500 group-hover:text-gray-300 transition-colors bg-[#1a1a1a] p-1.5 rounded-md border border-[#2a2a2a]"><IconComponent size={14} /></div>
-            <span className="text-[11px] text-gray-400 group-hover:text-white font-medium flex-1 truncate">{asset.label}</span>
-            {/* 编辑按钮 (仅针对自定义资产) */}
-            {onEdit && (
-                <button onClick={(e) => { e.stopPropagation(); onEdit(asset); }} className="p-1 text-gray-500 hover:text-white rounded hover:bg-[#333]">
-                    <Settings size={12} />
-                </button>
-            )}
-            {!onEdit && <GripVertical size={12} className="text-gray-600 opacity-0 group-hover:opacity-100" />}
+        <span className="text-[11px] text-gray-400 group-hover:text-white font-medium flex-1 truncate">{asset.label}</span>
+        {/* 编辑按钮 (仅针对自定义资产) */}
+        {onEdit && (
+            <button onClick={(e) => { e.stopPropagation(); onEdit(asset); }} className="p-1 text-gray-500 hover:text-white rounded hover:bg-[#333]">
+                <Settings size={12} />
+            </button>
+        )}
+        {!onEdit && <GripVertical size={12} className="text-gray-600 opacity-0 group-hover:opacity-100" />}
         </div>
     );
 };
@@ -1955,21 +1892,21 @@ const AssetEditModal = ({ asset, onClose, onSave, onDelete, onExport, onReplace 
                         <div>
                             <label className="text-[10px] text-gray-500 block mb-1.5">默认缩放 (Default Scale)</label>
                             <div className="flex items-center gap-2 mb-1">
-                                <input
-                                    type="range"
-                                    min="0.001"
-                                    max="5"
-                                    step="0.001"
-                                    value={scale}
-                                    onChange={e => setScale(parseFloat(e.target.value))}
-                                    className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                <input 
+                                    type="range" 
+                                    min="0.001" 
+                                    max="5" 
+                                    step="0.001" 
+                                    value={scale} 
+                                    onChange={e => setScale(parseFloat(e.target.value))} 
+                                    className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500" 
                                 />
-                                <input
-                                    type="number"
+                                <input 
+                                    type="number" 
                                     min="0.001"
                                     max="10"
                                     step="0.01"
-                                    value={scale}
+                                    value={scale} 
                                     onChange={e => {
                                         const val = e.target.value;
                                         // 允许清空输入框
@@ -1989,7 +1926,7 @@ const AssetEditModal = ({ asset, onClose, onSave, onDelete, onExport, onReplace 
                                             setScale(0.001);
                                         }
                                     }}
-                                    className="w-20 bg-[#0f0f0f] border border-[#333] rounded px-2 py-1 text-xs text-white text-center focus:border-blue-500 outline-none"
+                                    className="w-20 bg-[#0f0f0f] border border-[#333] rounded px-2 py-1 text-xs text-white text-center focus:border-blue-500 outline-none" 
                                 />
                             </div>
                             <div className="flex w-full bg-[#1a1a1a] rounded overflow-hidden border border-[#2a2a2a]">
@@ -2018,20 +1955,20 @@ const AssetEditModal = ({ asset, onClose, onSave, onDelete, onExport, onReplace 
                         {/* 替换模型文件 */}
                         <div>
                             <label className="text-[10px] text-gray-500 block mb-1.5">替换模型文件</label>
-                            <input
-                                type="file"
-                                ref={replaceInputRef}
-                                className="hidden"
-                                accept=".glb,.gltf"
+                            <input 
+                                type="file" 
+                                ref={replaceInputRef} 
+                                className="hidden" 
+                                accept=".glb,.gltf" 
                                 onChange={(e) => {
                                     const file = e.target.files[0];
                                     if (file && onReplace) {
                                         onReplace(asset, file);
                                     }
-                                }}
+                                }} 
                             />
-                            <button
-                                onClick={() => replaceInputRef.current?.click()}
+                            <button 
+                                onClick={() => replaceInputRef.current?.click()} 
                                 className="w-full py-2 bg-[#1a1a1a] border border-[#333] rounded text-xs text-gray-400 hover:text-white hover:border-blue-500 transition-colors flex items-center justify-center gap-2"
                             >
                                 <Upload size={14} /> 选择新的.glb文件
@@ -2064,25 +2001,25 @@ const AssetEditModal = ({ asset, onClose, onSave, onDelete, onExport, onReplace 
                 <div className="p-4 border-t border-[#2a2a2a] bg-[#1a1a1a] flex justify-between gap-2">
                     {/* 左侧：删除和导出按钮 */}
                     <div className="flex gap-2">
-                        <button
+                        <button 
                             onClick={() => {
                                 if (window.confirm(`确定要删除资产"${asset.label}"吗？\n\n使用该资产的所有对象将被重置为默认几何体。`)) {
                                     onDelete(asset);
                                     onClose();
                                 }
-                            }}
+                            }} 
                             className="px-4 py-2 rounded text-xs text-red-400 hover:bg-red-900/20 transition-colors border border-red-500/30 hover:border-red-500 flex items-center gap-1"
                         >
                             <Trash2 size={14} /> 删除资产
                         </button>
-                        <button
-                            onClick={() => onExport(asset)}
+                        <button 
+                            onClick={() => onExport(asset)} 
                             className="px-4 py-2 rounded text-xs text-gray-400 hover:text-white hover:bg-[#252525] transition-colors border border-[#333] hover:border-blue-500 flex items-center gap-1"
                         >
                             <Download size={14} /> 导出.glb
                         </button>
                     </div>
-
+                    
                     {/* 右侧：取消和保存按钮 */}
                     <div className="flex gap-2">
                         <button onClick={onClose} className="px-4 py-2 rounded text-xs text-gray-400 hover:bg-[#252525] transition-colors border border-transparent hover:border-[#333]">取消</button>
@@ -2109,7 +2046,7 @@ const PropSection = ({ title, children }) => {
 const PropRow = ({ label, children, vertical = false }) => (<div className={`flex ${vertical ? 'flex-col items-start gap-2' : 'items-center gap-3'}`}><label className={`text-[11px] text-gray-500 shrink-0 ${vertical ? 'w-full text-left pl-1' : 'w-16'}`}>{label}</label><div className="flex-1 flex gap-2 w-full">{children}</div></div>);
 const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, className, min }) => {
     const inputRef = useRef(null);
-
+    
     // 当外部value变化时，更新输入框（仅在非聚焦时）
     useEffect(() => {
         if (inputRef.current && document.activeElement !== inputRef.current) {
@@ -2120,7 +2057,7 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
     const handleBlur = (e) => {
         const val = e.target.value.trim();
         let num = parseFloat(val);
-
+        
         if (val === '' || isNaN(num)) {
             // 无效输入，恢复默认值
             num = min !== undefined ? min : 0;
@@ -2128,7 +2065,7 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
             // 应用最小值限制
             num = min;
         }
-
+        
         // 更新输入框显示和外部状态
         e.target.value = num;
         onChange(num);
@@ -2152,7 +2089,7 @@ const SmartInput = ({ value, onChange, step = 0.1, label, suffix, disabled, clas
                 onKeyUp={(e) => e.stopPropagation()}
                 onKeyPress={(e) => e.stopPropagation()}
                 disabled={disabled}
-                className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] w-1 rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed"
+                className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed"
             />
             {suffix && <span className="absolute right-3 text-[10px] text-gray-500 select-none pointer-events-none">{suffix}</span>}
         </div>
@@ -2438,13 +2375,13 @@ const App = () => {
     const LOCAL_STORAGE_KEY = 'digital-twin-pro-data';
     const DATA_VERSION_KEY = 'digital-twin-pro-version';
     const CURRENT_VERSION = '2.0'; // 当前数据版本
-
+    
     // 从本地存储加载数据
     const loadFromLocalStorage = () => {
         try {
             // 检查数据版本
             const savedVersion = localStorage.getItem(DATA_VERSION_KEY);
-
+            
             // 如果版本不匹配，清除旧数据
             if (savedVersion !== CURRENT_VERSION) {
                 console.log('🔄 检测到旧版本数据 (v' + (savedVersion || '1.0') + ')，清除并使用新版本 (v' + CURRENT_VERSION + ')');
@@ -2452,12 +2389,12 @@ const App = () => {
                 localStorage.setItem(DATA_VERSION_KEY, CURRENT_VERSION);
                 return null;
             }
-
+            
             const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
             if (saved) {
                 const data = JSON.parse(saved);
                 console.log('📦 从本地存储加载数据 (v' + CURRENT_VERSION + '):', data);
-
+                
                 // 🔑 迁移逻辑：修正底图位置和透明度
                 if (data.objects) {
                     data.objects = data.objects.map(obj => {
@@ -2472,7 +2409,7 @@ const App = () => {
                         return obj;
                     });
                 }
-
+                
                 // 🔑 修正floors中每个楼层的底图
                 if (data.floors) {
                     data.floors = data.floors.map(scene => ({
@@ -2493,7 +2430,7 @@ const App = () => {
                         }))
                     }));
                 }
-
+                
                 return data;
             }
         } catch (error) {
@@ -2503,7 +2440,7 @@ const App = () => {
         }
         return null;
     };
-
+    
     const initialObjects = [];
     const [objects, setObjects] = useState(() => {
         const saved = loadFromLocalStorage();
@@ -2532,12 +2469,12 @@ const App = () => {
     const [isEditingPoints, setIsEditingPoints] = useState(false);
     const [history, setHistory] = useState([initialObjects]);
     const [historyIndex, setHistoryIndex] = useState(0);
-
+    
     // 同步history到ref
     useEffect(() => {
         historyRef.current = { history, index: historyIndex };
     }, [history, historyIndex]);
-
+    
     const [sidebarTab, setSidebarTab] = useState('assets');
     const [searchQuery, setSearchQuery] = useState('');
     const [isPreviewMode, setIsPreviewMode] = useState(false); // 预览模式状态（已禁用）
@@ -2595,11 +2532,11 @@ const App = () => {
                 isDefault: true,
                 // 楼层列表 - 每个楼层有自己的地图和对象
                 floorLevels: [
-                    {
-                        id: 'floor-1',
-                        name: '1F',
-                        height: 0,
-                        visible: true,
+                    { 
+                        id: 'floor-1', 
+                        name: '1F', 
+                        height: 0, 
+                        visible: true, 
                         objects: [],
                         // 地图相关数据（每个楼层独立）
                         baseMapId: null,
@@ -2777,11 +2714,11 @@ const App = () => {
             }
             return f;
         });
-
+        
         setFloors(updatedFloors);
         setLastSavedState(JSON.stringify({ floors: updatedFloors, objects }));
         setHasUnsavedChanges(false);
-
+        
         console.log('💾 场景已保存:', currentScene?.name);
         alert(`✅ 场景 "${currentScene?.name}" 已保存`);
     }, [floors, currentFloorId, objects, currentScene]);
@@ -2809,8 +2746,8 @@ const App = () => {
     }, []);
 
     const selectedObject = objects.find(o => o && o.id === selectedId);
-    const filteredObjects = objects.filter(obj =>
-        obj &&
+    const filteredObjects = objects.filter(obj => 
+        obj && 
         // 🔑 隐藏锁定的GLB模型（地图模型）
         !(obj.type === 'custom_model' && obj.locked) &&
         ((obj.name && obj.name.toLowerCase().includes(searchQuery.toLowerCase())) || (obj.type && obj.type.toLowerCase().includes(searchQuery.toLowerCase())))
@@ -2887,13 +2824,13 @@ const App = () => {
             console.log('🗺️ 添加底图:', baseMapObj.name, '尺寸:', mapWidth.toFixed(2), 'x', mapHeight.toFixed(2));
         } else if (floor.mapData) {
             const mapData = floor.mapData;
-
+            
             // 🔑 安全检查：确保actualSize存在
             if (!mapData.actualSize || !mapData.resolution) {
                 console.warn('⚠️ 底图数据不完整，跳过创建:', mapData);
                 return floorObjects;
             }
-
+            
             const mapWidth = mapData.actualSize.width * mapData.resolution;
             const mapHeight = mapData.actualSize.height * mapData.resolution;
 
@@ -3216,7 +3153,7 @@ const App = () => {
     // 切换场景
     // 使用useRef跟踪上一个场景ID，避免重复触发
     const prevFloorIdRef = useRef(null);
-
+    
     useEffect(() => {
         if (!currentFloorId || floors.length === 0) return;
 
@@ -3224,14 +3161,14 @@ const App = () => {
         if (prevFloorIdRef.current === currentFloorId) {
             return;
         }
-
+        
         prevFloorIdRef.current = currentFloorId;
 
         const floor = floors.find(f => f.id === currentFloorId);
         if (!floor) return;
 
         console.log('🔄 切换到场景:', floor.name);
-
+        
         // 自动设置当前楼层为该场景的第一个楼层（只设置ID，不加载对象）
         // 对象加载由楼层切换的useEffect处理
         if (floor.floorLevels && floor.floorLevels.length > 0) {
@@ -3240,29 +3177,29 @@ const App = () => {
             setCurrentFloorLevelId(firstFloor.id);
         }
     }, [currentFloorId, floors]);
-
+    
     // 🔑 新增：切换楼层时加载对应楼层的对象
     // 使用useRef跟踪上一个楼层ID，避免重复加载
     const prevFloorLevelIdRef = useRef(null);
-
+    
     useEffect(() => {
         if (!currentFloorLevel) {
             console.log('⚠️ currentFloorLevel 为空');
             return;
         }
-
+        
         // 只有当楼层ID真正改变时才加载对象
         if (prevFloorLevelIdRef.current === currentFloorLevel.id) {
             return;
         }
-
+        
         prevFloorLevelIdRef.current = currentFloorLevel.id;
-
+        
         console.log('🏢 切换到楼层:', currentFloorLevel.name, '| ID:', currentFloorLevel.id);
-
+        
         // 加载当前楼层的对象
         let validObjects = [];
-
+        
         if (currentFloorLevel.objects && currentFloorLevel.objects.length > 0) {
             // 过滤掉null和undefined
             validObjects = currentFloorLevel.objects.filter(obj => obj != null);
@@ -3270,21 +3207,21 @@ const App = () => {
         } else {
             console.log('📭 当前楼层没有对象');
         }
-
+        
         // 🔑 如果楼层有SLAM底图数据，创建底图对象
         if (currentFloorLevel.baseMapData) {
             console.log('🗺️ 楼层有SLAM底图，创建底图对象');
             const mapData = currentFloorLevel.baseMapData;
-
+            
             // 🔑 安全检查：确保actualSize存在
             if (!mapData.actualSize || !mapData.resolution) {
                 console.warn('⚠️ 底图数据不完整，跳过创建:', mapData);
                 return validObjects;
             }
-
+            
             const mapWidth = mapData.actualSize.width * mapData.resolution;
             const mapHeight = mapData.actualSize.height * mapData.resolution;
-
+            
             const baseMapObj = {
                 id: `map_${currentFloorLevel.id}`,
                 type: 'map_image',
@@ -3299,9 +3236,9 @@ const App = () => {
                 isBaseMap: true,
                 imageData: mapData.imageUrl || mapData.imageData
             };
-
+            
             console.log('🗺️ 从楼层数据创建底图对象:', baseMapObj);
-
+            
             // 检查是否已经有这个底图对象
             const hasBaseMap = validObjects.some(obj => obj.id === baseMapObj.id);
             if (!hasBaseMap) {
@@ -3309,7 +3246,7 @@ const App = () => {
                 console.log('✅ 已添加SLAM底图对象到场景');
             }
         }
-
+        
         // 如果楼层有3D模型数据，创建模型对象
         if (currentFloorLevel.sceneModelData) {
             console.log('🏗️ 楼层有3D模型，创建模型对象');
@@ -3327,9 +3264,9 @@ const App = () => {
                 opacity: 1,
                 color: '#ffffff'
             };
-
+            
             console.log('🏗️ 从楼层数据创建模型对象:', modelObj);
-
+            
             // 检查是否已经有这个模型对象
             const hasModel = validObjects.some(obj => obj.id === modelObj.id);
             if (!hasModel) {
@@ -3337,12 +3274,12 @@ const App = () => {
                 console.log('✅ 已添加3D模型对象到场景');
             }
         }
-
+        
         setObjects(validObjects);
         setHistory([validObjects]);
         setHistoryIndex(0);
     }, [currentFloorLevel]);
-
+    
 
     // 🔑 修改：自动保存当前楼层的对象数据
     useEffect(() => {
@@ -3350,7 +3287,7 @@ const App = () => {
 
         const floor = floors.find(f => f.id === currentFloorId);
         if (!floor) return;
-
+        
         const currentFloor = floor.floorLevels?.find(fl => fl.id === currentFloorLevelId);
         if (!currentFloor) return;
 
@@ -3415,9 +3352,9 @@ const App = () => {
                 ...scene,
                 floorLevels: scene.floorLevels.map(floor => {
                     const floorCopy = { ...floor };
-
+                    
                     // 🔑 GLB模型已上传到Supabase，URL是HTTP URL，不需要过滤
-
+                    
                     // 如果有baseMapData，只保存元数据，不保存图片base64
                     if (floorCopy.baseMapData && floorCopy.baseMapData.imageUrl?.startsWith('data:')) {
                         floorCopy.baseMapData = {
@@ -3426,14 +3363,14 @@ const App = () => {
                             _note: '已保存到Supabase'
                         };
                     }
-
+                    
                     return floorCopy;
                 })
             }));
-
+            
             // 🔑 GLB模型已上传到Supabase，URL是HTTP URL，不需要过滤
             const objectsToSave = objects;
-
+            
             const dataToSave = {
                 floors: floorsToSave,
                 currentFloorId,
@@ -3486,14 +3423,14 @@ const App = () => {
     // 复制选中对象
     const copySelected = useCallback(() => {
         if (selectedIds.length === 0) return;
-
+        
         // 收集所有需要复制的对象（包括组对象的子对象）
         const objectsToCopy = new Set();
         const selectedObjects = objects.filter(o => selectedIds.includes(o.id) && !o.isBaseMap);
-
+        
         selectedObjects.forEach(obj => {
             objectsToCopy.add(obj);
-
+            
             // 如果是组对象，添加所有子对象
             if (obj.type === 'group' && obj.children) {
                 obj.children.forEach(childId => {
@@ -3504,7 +3441,7 @@ const App = () => {
                 });
             }
         });
-
+        
         const allObjectsToCopy = Array.from(objectsToCopy);
         if (allObjectsToCopy.length > 0) {
             setClipboard(allObjectsToCopy);
@@ -3518,29 +3455,29 @@ const App = () => {
 
         const idMapping = {}; // 用于映射旧ID到新ID
         const newObjects = [];
-
+        
         // 第一遍：创建所有新对象并建立ID映射
         clipboard.forEach(obj => {
             const newId = uuidv4();
             idMapping[obj.id] = newId;
-
+            
             const newObj = {
                 ...obj,
                 id: newId,
                 name: `${obj.name} (Copy)`,
                 position: [...obj.position] // 原位粘贴，保持相同位置
             };
-
+            
             newObjects.push(newObj);
         });
-
+        
         // 第二遍：更新所有的parentId和children引用
         newObjects.forEach(obj => {
             // 如果是组对象，更新children的ID映射
             if (obj.type === 'group' && obj.children) {
                 obj.children = obj.children.map(childId => idMapping[childId] || childId);
             }
-
+            
             // 如果有父对象，更新parentId
             if (obj.parentId && idMapping[obj.parentId]) {
                 obj.parentId = idMapping[obj.parentId];
@@ -3596,7 +3533,7 @@ const App = () => {
         }
 
         let idsToSelect = [id];
-
+        
         // 场景E：Ctrl+点击 - 穿透选择子对象（忽略父组）
         if (ctrlKey && obj && obj.parentId) {
             console.log('🎯 穿透选择子对象:', id);
@@ -3651,12 +3588,12 @@ const App = () => {
             // 检查当前焦点是否在输入框中（使用 document.activeElement 更可靠）
             const activeEl = document.activeElement;
             const isInInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
-
+            
             // 如果在输入框中，只允许ESC键
             if (isInInput && e.key !== 'Escape') {
                 return;
             }
-
+            
             // ESC 键：取消绘制模式，退出编辑模式，清除选择
             if (e.key === 'Escape') {
                 if (toolMode !== 'select') {
@@ -3842,7 +3779,7 @@ const App = () => {
     const handleDeleteAsset = (asset) => {
         // 从资产库中删除
         setCustomAssets(customAssets.filter(a => a.id !== asset.id));
-
+        
         // 重置所有使用该资产的对象为默认几何体
         const updatedObjects = objects.map(obj => {
             if (obj.assetId === asset.id || obj.modelUrl === asset.modelUrl) {
@@ -3857,7 +3794,7 @@ const App = () => {
             }
             return obj;
         });
-
+        
         commitHistory(updatedObjects);
         console.log('✅ 已删除资产:', asset.label);
     };
@@ -3874,7 +3811,7 @@ const App = () => {
             }
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: 'model/gltf-binary' });
-
+            
             // 创建下载链接
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -3884,7 +3821,7 @@ const App = () => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-
+            
             console.log('✅ 已导出资产:', asset.label);
         } catch (error) {
             console.error('❌ 导出失败:', error);
@@ -3906,10 +3843,10 @@ const App = () => {
                 ...asset,
                 modelUrl: base64Data
             };
-
+            
             // 更新资产库
             setCustomAssets(customAssets.map(a => a.id === asset.id ? updatedAsset : a));
-
+            
             // 同步更新所有使用该资产的对象
             const updatedObjects = objects.map(obj => {
                 if (obj.assetId === asset.id) {
@@ -3920,7 +3857,7 @@ const App = () => {
                 }
                 return obj;
             });
-
+            
             commitHistory(updatedObjects);
             console.log('✅ 已替换资产模型:', asset.label);
             alert(`✅ 已替换"${asset.label}"的模型文件`);
@@ -4168,7 +4105,7 @@ const App = () => {
         console.log('📋 JSON所有键:', Object.keys(jsonData));
         console.log('mapfileEntitys 数量:', jsonData.mapfileEntitys?.length || 0);
         console.log('graphTopologys 数量:', jsonData.graphTopologys?.length || 0);
-
+        
         // 检测JSON格式类型
         let formatType = 'unknown';
         if (jsonData.mapfileEntitys || jsonData.graphTopologys) {
@@ -4176,43 +4113,43 @@ const App = () => {
         } else if (jsonData.imageData && jsonData.resolution) {
             formatType = 'new'; // 新格式（单个地图对象）
         }
-
+        
         console.log('📋 检测到的格式类型:', formatType);
-
+        
         if (formatType === 'unknown') {
             console.error('❌ JSON数据格式无法识别！');
             console.error('实际的字段:', Object.keys(jsonData));
             alert('❌ JSON数据格式不正确\n\n未找到地图数据。支持的格式：\n1. 包含 mapfileEntitys 和 graphTopologys 的格式\n2. 包含 imageData 和 resolution 的地图对象');
             return;
         }
-
+        
         if (!currentFloorLevel) {
             console.error('❌ 没有当前楼层，无法加载地图');
             alert('错误：没有当前楼层');
             return;
         }
-
+        
         // 处理新格式
         if (formatType === 'new') {
             console.log('🆕 使用新格式加载地图');
-
+            
             // 从URL加载图片
             const imageUrl = jsonData.imageData;
-
+            
             // 🔑 安全检查：确保actualSize存在
             if (!jsonData.actualSize || !jsonData.resolution) {
                 console.error('❌ 底图数据不完整，缺少actualSize或resolution');
                 alert('地图数据格式错误：缺少尺寸信息');
                 return;
             }
-
+            
             const mapWidth = jsonData.actualSize.width * jsonData.resolution;
             const mapHeight = jsonData.actualSize.height * jsonData.resolution;
-
+            
             console.log('📐 底图尺寸:', mapWidth, 'x', mapHeight, '米');
             console.log('📍 底图原点:', jsonData.origin);
             console.log('📍 底图居中在世界坐标 (0, 0, 0)');
-
+            
             const baseMapObj = {
                 id: `map_${jsonData.id}`,
                 type: 'map_image',
@@ -4228,9 +4165,9 @@ const App = () => {
                 imageData: imageUrl, // 使用URL而不是base64
                 mapMetadata: jsonData
             };
-
+            
             const newObjects = [baseMapObj];
-
+            
             // 保存到楼层
             setFloors(prev => prev.map(scene => {
                 if (scene.id === currentFloorId) {
@@ -4252,13 +4189,13 @@ const App = () => {
                 }
                 return scene;
             }));
-
+            
             setObjects(newObjects);
             console.log('✅ 新格式地图加载完成！');
             console.log('💡 提示：点位和路径数据需要从服务器API获取');
             return;
         }
-
+        
         // 处理旧格式
         if (jsonData.graphTopologys && jsonData.graphTopologys.length > 0) {
             console.log('📍 第一个topology的poses数量:', jsonData.graphTopologys[0].poses?.length || 0);
@@ -4271,7 +4208,7 @@ const App = () => {
 
         // 1. 加载底图
         let baseMapDataForGLB = null; // 保存底图数据供GLB使用
-
+        
         if (jsonData.mapfileEntitys && jsonData.mapfileEntitys.length > 0) {
             jsonData.mapfileEntitys.forEach(mapEntity => {
                 const record = mapEntity.record;
@@ -4286,7 +4223,7 @@ const App = () => {
                 // 创建底图对象
                 const mapWidth = record.width * record.resolution;
                 const mapHeight = record.height * record.resolution;
-
+                
                 // 🔑 底图始终居中在世界坐标原点，不受origin影响
                 // origin只用于GLB模型的对齐
                 const baseMapObj = {
@@ -4306,7 +4243,7 @@ const App = () => {
                 };
 
                 newObjects.push(baseMapObj);
-
+                
                 // 🔑 保存底图数据供GLB模型使用
                 if (!baseMapDataForGLB) {
                     baseMapDataForGLB = {
@@ -4379,7 +4316,7 @@ const App = () => {
         // 4. 如果有点位或路径，创建场景组
         if (networkObjectIds.length > 0) {
             const groupId = uuidv4();
-
+            
             // 计算所有点位和路径的中心位置
             const networkObjects = newObjects.filter(o => networkObjectIds.includes(o.id));
             let sumX = 0, sumZ = 0;
@@ -4389,7 +4326,7 @@ const App = () => {
             });
             const centerX = sumX / networkObjects.length;
             const centerZ = sumZ / networkObjects.length;
-
+            
             // 创建组对象
             const sceneGroup = {
                 id: groupId,
@@ -4404,7 +4341,7 @@ const App = () => {
                 visible: true,
                 locked: false
             };
-
+            
             // 将所有点位和路径设置为组的子对象
             networkObjectIds.forEach(objId => {
                 const obj = newObjects.find(o => o.id === objId);
@@ -4418,7 +4355,7 @@ const App = () => {
                     ];
                 }
             });
-
+            
             newObjects.push(sceneGroup);
             console.log('📦 已创建场景路网组:', networkObjectIds.length, '个对象');
         }
@@ -4428,7 +4365,7 @@ const App = () => {
         console.log('  - 地图底图:', newObjects.filter(o => o.type === 'map_image').length);
         console.log('  - 组对象:', newObjects.filter(o => o.type === 'group').length);
         console.log('  - 有parentId的对象:', newObjects.filter(o => o.parentId).length);
-
+        
         // 输出组对象的详细信息
         const groups = newObjects.filter(o => o.type === 'group');
         groups.forEach(group => {
@@ -4440,7 +4377,7 @@ const App = () => {
                 childrenNames: children.map(c => c.name).slice(0, 5)
             });
         });
-
+        
         console.log('  - Waypoint点位:', newObjects.filter(o => o.type === 'waypoint').length);
         console.log('  - 路径线:', newObjects.filter(o => o.type === 'path_line').length);
 
@@ -4456,7 +4393,7 @@ const App = () => {
                 imageDataPrefix: mapObj.imageData?.substring(0, 50)
             });
         }
-
+        
         // 🔑 关键改动：将对象保存到当前楼层，而不是全局objects
         setFloors(prev => prev.map(scene => {
             if (scene.id === currentFloorId) {
@@ -4465,7 +4402,7 @@ const App = () => {
                     floorLevels: scene.floorLevels.map(floor => {
                         if (floor.id === currentFloorLevelId) {
                             console.log(`💾 将 ${newObjects.length} 个对象保存到楼层: ${floor.name}`);
-
+                            
                             // 💾 保存底图数据到Supabase
                             if (baseMapDataForGLB) {
                                 console.log('📤 准备保存底图数据到Supabase:', {
@@ -4475,7 +4412,7 @@ const App = () => {
                                     resolution: baseMapDataForGLB.resolution,
                                     actualSize: baseMapDataForGLB.actualSize
                                 });
-
+                                
                                 saveBaseMap(floor.id, {
                                     imageUrl: baseMapDataForGLB.imageUrl,
                                     origin: baseMapDataForGLB.origin,
@@ -4488,7 +4425,7 @@ const App = () => {
                                     console.error('错误详情:', JSON.stringify(error, null, 2));
                                 });
                             }
-
+                            
                             return {
                                 ...floor,
                                 objects: newObjects,
@@ -4503,10 +4440,10 @@ const App = () => {
             }
             return scene;
         }));
-
+        
         // 同时更新当前显示的objects
         setObjects(newObjects);
-
+        
         console.log('✅ 地图数据已保存到当前楼层');
     };
 
@@ -4590,8 +4527,7 @@ const App = () => {
             if (json.mapfileEntitys || json.graphTopologys) {
                 console.log('🗺️ 检测到地图JSON，开始加载...');
                 loadMapFromJSON(json);
-                // 移除成功弹窗，后台自动上传
-                console.log('✅ 地图导入成功！已加载底图、点位和路径。');
+                alert('✅ 地图导入成功！\n已加载底图、点位和路径。');
                 e.target.value = '';
                 return;
             }
@@ -4747,10 +4683,10 @@ const App = () => {
         // 支持单选和多选
         const targetIds = selectedIds.length > 0 ? selectedIds : (selectedId ? [selectedId] : []);
         if (targetIds.length === 0) return;
-
+        
         const newObjects = objects.map(obj => {
             if (!targetIds.includes(obj.id)) return obj;
-
+            
             // 路径类型：将所有点的Y坐标设置为0.1（稍微高于地面）
             if (obj.type === 'path') {
                 return {
@@ -4758,9 +4694,9 @@ const App = () => {
                     points: obj.points.map(point => [point[0], 0.1, point[2]])
                 };
             }
-
+            
             let newY = 0;
-
+            
             // 根据物体类型计算底部应该在地面的Y坐标
             if (obj.type === 'floor') {
                 newY = -0.11;  // 地面稍微低一点
@@ -4779,13 +4715,13 @@ const App = () => {
                 // 其他物体放在地面上
                 newY = 0;
             }
-
+            
             const newPos = [...obj.position];
             newPos[1] = newY;
             return { ...obj, position: newPos };
         });
         commitHistory(newObjects);
-
+        
         console.log(`✅ 已将 ${targetIds.length} 个对象置于地面`);
     };
 
@@ -4905,7 +4841,7 @@ const App = () => {
             // 检查当前焦点是否在输入框中（使用 document.activeElement 更可靠）
             const activeEl = document.activeElement;
             const isInInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
-
+            
             // 如果在输入框中，只允许 Ctrl+S 保存
             if (isInInput) {
                 if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -4968,7 +4904,7 @@ const App = () => {
         if (!dragOffsetRef.lastUpdateTime) {
             dragOffsetRef.lastUpdateTime = now;
         }
-
+        
         // 限制更新频率为每16ms一次（约60fps）
         if (!dragOffsetRef.updateScheduled && (now - dragOffsetRef.lastUpdateTime) >= 16) {
             dragOffsetRef.updateScheduled = true;
@@ -4982,7 +4918,7 @@ const App = () => {
 
     const handleDragEnd = () => {
         const finalOffset = dragOffsetRef.current || dragOffset;
-
+        
         if (finalOffset && selectedIds.length > 0) {
             console.log('🎯 handleDragEnd:', {
                 finalOffset,
@@ -5000,7 +4936,7 @@ const App = () => {
             // 场景A：仅选中组 - 只移动组对象
             // 场景B：仅选中子对象 - 更新子对象的relativePosition
             // 场景G：混合选择 - 子对象更新relativePosition，独立对象更新position
-
+            
             const updatedObjects = objects.map(obj => {
                 if (!selectedIds.includes(obj.id)) return obj;
 
@@ -5031,10 +4967,10 @@ const App = () => {
                     ]
                 };
             });
-
+            
             // 立即更新objects，然后清除拖动状态
             setObjects(updatedObjects);
-
+            
             // 在下一帧添加到历史记录，避免阻塞
             requestAnimationFrame(() => {
                 const { history: currentHistory, index: currentIndex } = historyRef.current;
@@ -5045,7 +4981,7 @@ const App = () => {
                 setHistoryIndex(newHistory.length - 1);
             });
         }
-
+        
         // 最后清除拖动状态
         dragOffsetRef.current = null;
         dragOffsetRef.lastUpdateTime = null;
@@ -5124,9 +5060,9 @@ const App = () => {
     return (
         <div className={`flex h-screen w-screen bg-[#080808] text-gray-300 overflow-hidden select-none ${toolMode.startsWith('draw') ? 'cursor-crosshair' : ''}`}>
             {editingAsset && (
-                <AssetEditModal
-                    asset={editingAsset}
-                    onClose={() => setEditingAsset(null)}
+                <AssetEditModal 
+                    asset={editingAsset} 
+                    onClose={() => setEditingAsset(null)} 
                     onSave={handleUpdateAsset}
                     onDelete={handleDeleteAsset}
                     onExport={handleExportAsset}
@@ -5262,19 +5198,13 @@ const App = () => {
                             <div className="mb-4">
                                 <button
                                     onClick={() => {
-                                        // 打开新增场景对话框，默认包含一个1F楼层
+                                        // 打开新增场景对话框
                                         setEditingFloor({
                                             id: Date.now().toString(),
-                                            name: `场景 ${floors.length + 1}`,
+                                            name: `场景 ${floors.length}`,
                                             description: '',
                                             mapPath: currentMapPath || availableMaps[0]?.path,
-                                            isNew: true,
-                                            floorLevels: [{
-                                                id: Date.now().toString(),
-                                                name: '1F',
-                                                objects: [],
-                                                baseMapData: null
-                                            }]
+                                            isNew: true
                                         });
                                     }}
                                     className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
@@ -5291,11 +5221,13 @@ const App = () => {
                                             <div className="flex-1">
                                                 <h4 className="text-sm font-bold text-white mb-1">
                                                     {floor.name}
-                                                    {floor.isDefault && <span className="ml-2 text-[10px] px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded">默认</span>}
+                                                    {floor.isDefault && <span className="ml-2 text-[10px] text-gray-500">(默认)</span>}
                                                 </h4>
-                                                <p className="text-[10px] text-gray-500 mt-1">
-                                                    创建时间: {floor.createdAt ? new Date(floor.createdAt).toLocaleString('zh-CN') : '未知'} |
-                                                    创建人: {floor.createdBy || '未知'}
+                                                <p className="text-xs text-gray-400">{floor.description}</p>
+                                                <p className="text-[10px] text-gray-600 mt-1">
+                                                    对象: {floor.objects?.length || 0} |
+                                                    地图: {floor.baseMapData ? '✓' : '✗'} |
+                                                    模型: {floor.sceneModelData ? '✓' : '✗'}
                                                 </p>
                                             </div>
                                             <div className="flex gap-1">
@@ -5317,7 +5249,7 @@ const App = () => {
                                                     }}
                                                     className="p-1.5 hover:bg-[#252525] rounded text-red-400 hover:text-red-300 transition-colors"
                                                     title="删除"
-                                                    disabled={floors.length === 1 || floor.isDefault}
+                                                    disabled={floors.length === 1}
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
@@ -5364,142 +5296,235 @@ const App = () => {
                             </div>
 
                             {/* 楼层管理区域 */}
-                            <div className="border-t border-[#2a2a2a] pt-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <label className="text-xs text-gray-400">楼层管理</label>
-                                    <button
-                                        onClick={() => {
-                                            if (editingFloor.isNew) {
-                                                // 新增场景：直接添加到editingFloor.floorLevels
-                                                const newName = prompt('新楼层名称:', `${(editingFloor.floorLevels || []).length + 1}F`);
-                                                if (newName) {
-                                                    setEditingFloor({
-                                                        ...editingFloor,
-                                                        floorLevels: [
-                                                            ...(editingFloor.floorLevels || []),
-                                                            {
-                                                                id: Date.now().toString(),
-                                                                name: newName,
-                                                                objects: [],
-                                                                baseMapData: null
-                                                            }
-                                                        ]
-                                                    });
-                                                }
-                                            } else {
-                                                // 编辑场景：使用原有的addFloorLevel函数
+                            {!editingFloor.isNew && currentScene && currentScene.floorLevels && (
+                                <div className="border-t border-[#2a2a2a] pt-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <label className="text-xs text-gray-400">楼层管理</label>
+                                        <button
+                                            onClick={() => {
                                                 const newName = prompt('新楼层名称:', `${currentScene.floorLevels.length + 1}F`);
                                                 if (newName) addFloorLevel(newName);
-                                            }
-                                        }}
-                                        className="flex items-center gap-1 px-2 py-1 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all"
-                                    >
-                                        <Plus size={12} />
-                                        <span>新增楼层</span>
-                                    </button>
-                                </div>
-                                <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-                                    {(editingFloor?.isNew ? (editingFloor.floorLevels || []) : (currentScene?.floorLevels || [])).map((floor) => (
-                                        <div
-                                            key={floor.id}
-                                            className="bg-[#1a1a1a] rounded-lg overflow-hidden"
+                                            }}
+                                            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all"
                                         >
-                                            {/* 楼层标题栏 */}
-                                            <div className="flex items-center gap-2 px-3 py-2 hover:bg-[#222] transition-colors">
-                                                <button
-                                                    onClick={() => setEditingFloorLevelId(editingFloorLevelId === floor.id ? null : floor.id)}
-                                                    className="p-1 text-gray-400 hover:text-white transition-colors"
-                                                    title="展开/收起"
-                                                >
-                                                    {editingFloorLevelId === floor.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                                </button>
-                                                <div className="flex-1 text-xs text-white">{floor.name}</div>
-                                                <button
-                                                    onClick={() => {
-                                                        const newName = prompt('重命名楼层:', floor.name);
-                                                        if (newName && newName.trim()) {
-                                                            if (editingFloor.isNew) {
-                                                                // 新增场景：更新editingFloor.floorLevels
-                                                                setEditingFloor({
-                                                                    ...editingFloor,
-                                                                    floorLevels: editingFloor.floorLevels.map(fl =>
-                                                                        fl.id === floor.id ? { ...fl, name: newName.trim() } : fl
-                                                                    )
-                                                                });
-                                                            } else {
-                                                                // 编辑场景：使用原有函数
-                                                                renameFloorLevel(floor.id, newName.trim());
-                                                            }
-                                                        }
-                                                    }}
-                                                    className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded transition-all"
-                                                    title="重命名"
-                                                >
-                                                    <Edit3 size={12} />
-                                                </button>
-                                                {((editingFloor.isNew ? editingFloor.floorLevels : currentScene?.floorLevels || []).length > 1) && (
+                                            <Plus size={12} />
+                                            <span>新增楼层</span>
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+                                        {currentScene.floorLevels.map((floor) => (
+                                            <div
+                                                key={floor.id}
+                                                className="bg-[#1a1a1a] rounded-lg overflow-hidden"
+                                            >
+                                                {/* 楼层标题栏 */}
+                                                <div className="flex items-center gap-2 px-3 py-2 hover:bg-[#222] transition-colors">
+                                                    <button
+                                                        onClick={() => setEditingFloorLevelId(editingFloorLevelId === floor.id ? null : floor.id)}
+                                                        className="p-1 text-gray-400 hover:text-white transition-colors"
+                                                        title="展开/收起"
+                                                    >
+                                                        {editingFloorLevelId === floor.id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                    </button>
+                                                    <div className="flex-1 text-xs text-white">{floor.name}</div>
                                                     <button
                                                         onClick={() => {
-                                                            if (confirm(`确定删除楼层 "${floor.name}" 吗？\n该楼层的所有对象也会被删除。`)) {
-                                                                if (editingFloor.isNew) {
-                                                                    // 新增场景：从 editingFloor.floorLevels 中删除
-                                                                    setEditingFloor({
-                                                                        ...editingFloor,
-                                                                        floorLevels: editingFloor.floorLevels.filter(fl => fl.id !== floor.id)
-                                                                    });
-                                                                } else {
-                                                                    // 编辑场景：使用原有函数
-                                                                    deleteFloorLevel(floor.id);
-                                                                }
+                                                            const newName = prompt('重命名楼层:', floor.name);
+                                                            if (newName && newName.trim()) {
+                                                                renameFloorLevel(floor.id, newName.trim());
                                                             }
                                                         }}
-                                                        className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
-                                                        title="删除楼层"
+                                                        className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded transition-all"
+                                                        title="重命名"
                                                     >
-                                                        <Trash2 size={12} />
+                                                        <Edit3 size={12} />
                                                     </button>
-                                                )}
-                                            </div>
-
-                                            {/* 楼层地图设置（可展开） */}
-                                            {editingFloorLevelId === floor.id && (
-                                                <div className="px-3 pb-3 space-y-3 border-t border-[#2a2a2a] pt-3">
-
-                                                    {/* 1. 上传地图 */}
-                                                    <div>
-                                                        <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
-                                                            上传地图 <span className="text-gray-600 font-normal">(JSON格式)</span>
-                                                        </label>
-                                                        {floor.baseMapData ? (
-                                                            <>
-                                                                <div className="flex gap-2 mb-2">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setCurrentFloorLevelId(floor.id);
-                                                                            document.getElementById('floor-json-upload').click();
-                                                                        }}
-                                                                        className="flex-1 bg-[#0e0e0e] border border-green-500/50 rounded px-2 py-1.5 flex items-center gap-1.5 hover:bg-green-900/10 transition-all cursor-pointer"
-                                                                        title="点击重新上传"
-                                                                    >
-                                                                        <Check size={12} className="text-green-400" />
-                                                                        <span className="text-[10px] text-green-400 truncate">{floor.baseMapData.name || '地图文件.json'}</span>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            if (confirm('确定清除此楼层的数据源吗？')) {
+                                                    {currentScene.floorLevels.length > 1 && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (confirm(`确定删除楼层 "${floor.name}" 吗？\n该楼层的所有对象也会被删除。`)) {
+                                                                    deleteFloorLevel(floor.id);
+                                                                }
+                                                            }}
+                                                            className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
+                                                            title="删除楼层"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* 楼层地图设置（可展开） */}
+                                                {editingFloorLevelId === floor.id && (
+                                                    <div className="px-3 pb-3 space-y-3 border-t border-[#2a2a2a] pt-3">
+                                                        
+                                                        {/* 1. 上传地图 */}
+                                                        <div>
+                                                            <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
+                                                                上传地图 <span className="text-gray-600 font-normal">(JSON格式)</span>
+                                                            </label>
+                                                            {floor.baseMapData ? (
+                                                                <>
+                                                                    <div className="flex gap-2 mb-2">
+                                                                        <div className="flex-1 bg-[#0e0e0e] border border-green-500/50 rounded px-2 py-1.5 flex items-center gap-1.5">
+                                                                            <Check size={12} className="text-green-400" />
+                                                                            <span className="text-[10px] text-green-400">已加载</span>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setCurrentFloorLevelId(floor.id);
+                                                                                document.getElementById('floor-json-upload').click();
+                                                                            }}
+                                                                            className="px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
+                                                                            title="重新上传"
+                                                                        >
+                                                                            <RefreshCw size={12} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (confirm('确定清除此楼层的数据源吗？')) {
+                                                                                    setFloors(prev => prev.map(scene => {
+                                                                                        if (scene.id === currentFloorId) {
+                                                                                            return {
+                                                                                                ...scene,
+                                                                                                floorLevels: scene.floorLevels.map(fl => 
+                                                                                                    fl.id === floor.id 
+                                                                                                        ? { ...fl, waypointsData: null, pathsData: null, objects: [], baseMapData: null }
+                                                                                                        : fl
+                                                                                                )
+                                                                                            };
+                                                                                        }
+                                                                                        return scene;
+                                                                                    }));
+                                                                                }
+                                                                            }}
+                                                                            className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
+                                                                            title="清除"
+                                                                        >
+                                                                            <Trash2 size={12} />
+                                                                        </button>
+                                                                    </div>
+                                                                    {/* 🔑 显示SLAM底图开关 */}
+                                                                    <label className="flex items-center gap-2 px-2 py-1.5 bg-[#0e0e0e] border border-[#2a2a2a] rounded cursor-pointer hover:border-blue-500/30 transition-all">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={floor.showBaseMap !== false}
+                                                                            onChange={(e) => {
+                                                                                const show = e.target.checked;
+                                                                                // 更新楼层配置
                                                                                 setFloors(prev => prev.map(scene => {
                                                                                     if (scene.id === currentFloorId) {
                                                                                         return {
                                                                                             ...scene,
-                                                                                            floorLevels: scene.floorLevels.map(fl =>
-                                                                                                fl.id === floor.id
-                                                                                                    ? { ...fl, waypointsData: null, pathsData: null, objects: [], baseMapData: null }
+                                                                                            floorLevels: scene.floorLevels.map(fl => 
+                                                                                                fl.id === floor.id 
+                                                                                                    ? { ...fl, showBaseMap: show }
                                                                                                     : fl
                                                                                             )
                                                                                         };
                                                                                     }
                                                                                     return scene;
                                                                                 }));
+                                                                                // 更新场景中的底图对象可见性
+                                                                                setObjects(prev => prev.map(obj => 
+                                                                                    obj.id === `map_${floor.id}` && obj.type === 'map_image'
+                                                                                        ? { ...obj, visible: show }
+                                                                                        : obj
+                                                                                ));
+                                                                            }}
+                                                                            className="w-3.5 h-3.5 rounded border-gray-600 bg-[#1a1a1a] checked:bg-blue-500 checked:border-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                                                        />
+                                                                        <span className="text-[10px] text-gray-300">显示SLAM底图</span>
+                                                                    </label>
+                                                                </>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setCurrentFloorLevelId(floor.id);
+                                                                        document.getElementById('floor-json-upload').click();
+                                                                    }}
+                                                                    className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-gray-400 hover:text-white hover:bg-[#222] rounded transition-all border border-dashed border-[#333]"
+                                                                >
+                                                                    <Upload size={12} />
+                                                                    <span>上传JSON文件</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        {/* 2. 后端服务器地址 */}
+                                                        <div>
+                                                            <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
+                                                                后端服务器地址 <span className="text-gray-600 font-normal">(可选)</span>
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                value={floor.serverUrl || ''}
+                                                                onChange={(e) => {
+                                                                    setFloors(prev => prev.map(scene => {
+                                                                        if (scene.id === currentFloorId) {
+                                                                            return {
+                                                                                ...scene,
+                                                                                floorLevels: scene.floorLevels.map(fl => 
+                                                                                    fl.id === floor.id 
+                                                                                        ? { ...fl, serverUrl: e.target.value }
+                                                                                        : fl
+                                                                                )
+                                                                            };
+                                                                        }
+                                                                        return scene;
+                                                                    }));
+                                                                }}
+                                                                placeholder="例如: http://192.168.1.100:8080"
+                                                                className="w-full bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-blue-500 placeholder-gray-600"
+                                                            />
+                                                            <p className="text-[9px] text-gray-600 mt-1">用于楼层数据源的映射关系</p>
+                                                        </div>
+                                                        
+                                                        {/* 3. GLB底图模型（可选） */}
+                                                        <div>
+                                                            <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
+                                                                3D底图模型 <span className="text-gray-600 font-normal">(GLB/GLTF，可选)</span>
+                                                            </label>
+                                                            {floor.sceneModelData ? (
+                                                                <div className="flex gap-2">
+                                                                    <div className="flex-1 bg-[#0e0e0e] border border-purple-500/50 rounded px-2 py-1.5 flex items-center gap-1.5">
+                                                                        <Check size={12} className="text-purple-400" />
+                                                                        <span className="text-[10px] text-purple-400">已加载</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setCurrentFloorLevelId(floor.id);
+                                                                            document.getElementById(`floor-glb-upload-${floor.id}`).click();
+                                                                        }}
+                                                                        className="px-2 py-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 rounded transition-all border border-blue-500/30"
+                                                                        title="重新上传"
+                                                                    >
+                                                                        <RefreshCw size={12} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (confirm('确定清除此楼层的3D模型吗？')) {
+                                                                                // 清除楼层数据中的模型
+                                                                                setFloors(prev => prev.map(scene => {
+                                                                                    if (scene.id === currentFloorId) {
+                                                                                        return {
+                                                                                            ...scene,
+                                                                                            floorLevels: scene.floorLevels.map(fl => 
+                                                                                                fl.id === floor.id 
+                                                                                                    ? { ...fl, sceneModelData: null }
+                                                                                                    : fl
+                                                                                            )
+                                                                                        };
+                                                                                    }
+                                                                                    return scene;
+                                                                                }));
+                                                                                
+                                                                                // 🔑 同时从objects中移除模型对象
+                                                                                if (floor.id === currentFloorLevelId) {
+                                                                                    const modelId = `model_${floor.id}`;
+                                                                                    setObjects(prev => prev.filter(obj => obj.id !== modelId));
+                                                                                    console.log('🗑️ 已从场景中移除模型:', modelId);
+                                                                                }
                                                                             }
                                                                         }}
                                                                         className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
@@ -5508,324 +5533,198 @@ const App = () => {
                                                                         <Trash2 size={12} />
                                                                     </button>
                                                                 </div>
-                                                                {/* 🔑 显示SLAM底图开关 */}
-                                                                <label className="flex items-center gap-2 px-2 py-1.5 cursor-pointer">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={floor.showBaseMap !== false}
-                                                                        onChange={(e) => {
-                                                                            const show = e.target.checked;
-                                                                            // 更新楼层配置
-                                                                            setFloors(prev => prev.map(scene => {
-                                                                                if (scene.id === currentFloorId) {
-                                                                                    return {
-                                                                                        ...scene,
-                                                                                        floorLevels: scene.floorLevels.map(fl =>
-                                                                                            fl.id === floor.id
-                                                                                                ? { ...fl, showBaseMap: show }
-                                                                                                : fl
-                                                                                        )
-                                                                                    };
-                                                                                }
-                                                                                return scene;
-                                                                            }));
-                                                                            // 更新场景中的底图对象可见性
-                                                                            setObjects(prev => prev.map(obj =>
-                                                                                obj.id === `map_${floor.id}` && obj.type === 'map_image'
-                                                                                    ? { ...obj, visible: show }
-                                                                                    : obj
-                                                                            ));
-                                                                        }}
-                                                                        className="w-3.5 h-3.5 rounded border-gray-600 bg-[#1a1a1a] checked:bg-blue-500 checked:border-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                                                    />
-                                                                    <span className="text-[10px] text-gray-300">显示SLAM底图</span>
-                                                                </label>
-                                                            </>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setCurrentFloorLevelId(floor.id);
-                                                                    document.getElementById('floor-json-upload').click();
-                                                                }}
-                                                                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-gray-400 hover:text-white hover:bg-[#222] rounded transition-all border border-dashed border-[#333]"
-                                                            >
-                                                                <Upload size={12} />
-                                                                <span>上传JSON文件</span>
-                                                            </button>
-                                                        )}
-                                                    </div>
-
-                                                    {/* 2. 后端服务器地址 */}
-                                                    <div>
-                                                        <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
-                                                            后端服务器地址 <span className="text-gray-600 font-normal">(可选)</span>
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={floor.serverUrl || ''}
-                                                            onChange={(e) => {
-                                                                setFloors(prev => prev.map(scene => {
-                                                                    if (scene.id === currentFloorId) {
-                                                                        return {
-                                                                            ...scene,
-                                                                            floorLevels: scene.floorLevels.map(fl =>
-                                                                                fl.id === floor.id
-                                                                                    ? { ...fl, serverUrl: e.target.value }
-                                                                                    : fl
-                                                                            )
-                                                                        };
-                                                                    }
-                                                                    return scene;
-                                                                }));
-                                                            }}
-                                                            placeholder="例如: http://192.168.1.100:8080"
-                                                            className="w-full bg-[#0e0e0e] border border-[#2a2a2a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-blue-500 placeholder-gray-600"
-                                                        />
-                                                        <p className="text-[9px] text-gray-600 mt-1">用于楼层数据源的映射关系</p>
-                                                    </div>
-
-                                                    {/* 3. GLB底图模型（可选） */}
-                                                    <div>
-                                                        <label className="block text-[10px] text-gray-400 mb-1.5 font-medium">
-                                                            3D底图模型 <span className="text-gray-600 font-normal">(GLB/GLTF，可选)</span>
-                                                        </label>
-                                                        {floor.sceneModelData ? (
-                                                            <div className="flex gap-2">
+                                                            ) : (
                                                                 <button
                                                                     onClick={() => {
                                                                         setCurrentFloorLevelId(floor.id);
                                                                         document.getElementById(`floor-glb-upload-${floor.id}`).click();
                                                                     }}
-                                                                    className="flex-1 bg-[#0e0e0e] border border-purple-500/50 rounded px-2 py-1.5 flex items-center gap-1.5 hover:bg-purple-900/10 transition-all cursor-pointer"
-                                                                    title="点击重新上传"
+                                                                    className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-gray-400 hover:text-white hover:bg-[#222] rounded transition-all border border-dashed border-[#333]"
                                                                 >
-                                                                    <Check size={12} className="text-purple-400" />
-                                                                    <span className="text-[10px] text-purple-400 truncate">{floor.sceneModelData.name || '模型文件.glb'}</span>
+                                                                    <Upload size={12} />
+                                                                    <span>上传GLB模型</span>
                                                                 </button>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (confirm('确定清除此楼层的3D模型吗？')) {
-                                                                            // 清除楼层数据中的模型
+                                                            )}
+                                                            <input
+                                                                id={`floor-glb-upload-${floor.id}`}
+                                                                type="file"
+                                                                className="hidden"
+                                                                accept=".glb,.gltf"
+                                                                onChange={async (e) => {
+                                                                    const file = e.target.files[0];
+                                                                    if (!file) return;
+                                                                    
+                                                                    if (file.size > 50 * 1024 * 1024) {
+                                                                        alert('文件过大！请选择小于 50MB 的模型文件。');
+                                                                        e.target.value = '';
+                                                                        return;
+                                                                    }
+                                                                    
+                                                                    try {
+                                                                        // 🔑 上传GLB模型到Supabase Storage
+                                                                        console.log('📤 开始上传GLB模型到Supabase Storage...');
+                                                                        
+                                                                        // 生成安全的文件名（移除中文和特殊字符）
+                                                                        const timestamp = Date.now();
+                                                                        const fileExt = file.name.split('.').pop();
+                                                                        const safeFileName = `glb-models/${timestamp}.${fileExt}`;
+                                                                        
+                                                                        console.log('📝 原始文件名:', file.name);
+                                                                        console.log('📝 安全文件名:', safeFileName);
+                                                                        
+                                                                        const { data: uploadData, error: uploadError } = await supabase.storage
+                                                                            .from('digital-twin-assets')
+                                                                            .upload(safeFileName, file, {
+                                                                                cacheControl: '3600',
+                                                                                upsert: false
+                                                                            });
+                                                                        
+                                                                        if (uploadError) {
+                                                                            console.error('❌ 上传GLB模型失败:', uploadError);
+                                                                            alert('上传模型失败: ' + uploadError.message);
+                                                                            return;
+                                                                        }
+                                                                        
+                                                                        // 获取公开URL
+                                                                        const { data: urlData } = supabase.storage
+                                                                            .from('digital-twin-assets')
+                                                                            .getPublicUrl(safeFileName);
+                                                                        
+                                                                        const url = urlData.publicUrl;
+                                                                        console.log('✅ GLB模型上传成功:', url);
+                                                                            
+                                                                            // 自动计算模型的缩放和位置
+                                                                            let autoScale = [1, 1, 1];
+                                                                            let autoPosition = [0, 0, 0];
+                                                                            
+                                                                            // 获取当前楼层的底图数据
+                                                                            const mapData = floor.baseMapData;
+                                                                            
+                                                                            if (mapData) {
+                                                                                console.log('根据底图数据自动计算模型变换:', mapData);
+                                                                                
+                                                                                // 🔑 安全检查：确保actualSize存在
+                                                                                if (mapData.actualSize && mapData.resolution) {
+                                                                                    // 计算底图的实际尺寸（米）
+                                                                                    const mapWidth = mapData.actualSize.width * mapData.resolution;
+                                                                                    const mapHeight = mapData.actualSize.height * mapData.resolution;
+                                                                                
+                                                                                console.log('  - 底图尺寸:', mapWidth, 'x', mapHeight, '米');
+                                                                                
+                                                                                // 🔑 先使用临时缩放，模型加载后会自动计算真实缩放
+                                                                                // 标记需要自动适配
+                                                                                autoScale = [1, 1, 1]; // 临时值，会在模型加载后更新
+                                                                                
+                                                                                console.log('📐 将在模型加载后自动计算缩放以适配底图');
+                                                                                
+                                                                                // 🔑 底图居中在(0,0,0)，所以模型初始位置也是(0,0,0)
+                                                                                // 实际位置会在AutoScaleGltf组件中计算
+                                                                                autoPosition = [0, 0.01, 0];
+                                                                                
+                                                                                    console.log('  - 底图原点:', [mapData.origin.x, mapData.origin.y]);
+                                                                                    console.log('  - 底图居中在世界原点 (0, 0, 0)');
+                                                                                    console.log('  - 自动缩放:', autoScale);
+                                                                                    console.log('  - 自动位置:', autoPosition);
+                                                                                } else {
+                                                                                    console.warn('⚠️ 底图数据不完整，使用默认变换');
+                                                                                }
+                                                                            } else {
+                                                                                console.log('⚠️ 楼层没有底图数据，使用默认变换');
+                                                                            }
+                                                                            
+                                                                            // 保存模型数据到楼层
                                                                             setFloors(prev => prev.map(scene => {
                                                                                 if (scene.id === currentFloorId) {
                                                                                     return {
                                                                                         ...scene,
-                                                                                        floorLevels: scene.floorLevels.map(fl =>
-                                                                                            fl.id === floor.id
-                                                                                                ? { ...fl, sceneModelData: null }
+                                                                                        floorLevels: scene.floorLevels.map(fl => 
+                                                                                            fl.id === floor.id 
+                                                                                                ? { 
+                                                                                                    ...fl, 
+                                                                                                    sceneModelData: {
+                                                                                                        fileName: file.name,
+                                                                                                        url: url,
+                                                                                                        scale: autoScale,
+                                                                                                        position: autoPosition
+                                                                                                    }
+                                                                                                }
                                                                                                 : fl
                                                                                         )
                                                                                     };
                                                                                 }
                                                                                 return scene;
                                                                             }));
-
-                                                                            // 🔑 同时从objects中移除模型对象
+                                                                            
+                                                                            // 💾 保存到Supabase（异步，不阻塞UI）
+                                                                            saveGLBModel(floor.id, {
+                                                                                fileName: file.name,
+                                                                                url: url,
+                                                                                scale: autoScale,
+                                                                                position: autoPosition
+                                                                            }).then(() => {
+                                                                                console.log('✅ GLB模型已保存到Supabase');
+                                                                            }).catch(error => {
+                                                                                console.error('❌ 保存GLB模型到Supabase失败:', error);
+                                                                                console.error('错误详情:', JSON.stringify(error, null, 2));
+                                                                            });
+                                                                            
+                                                                            // 🔑 立即创建模型对象并添加到场景
+                                                                            console.log('🔍 检查是否添加到当前场景:', {
+                                                                                floorId: floor.id,
+                                                                                currentFloorLevelId: currentFloorLevelId,
+                                                                                match: floor.id === currentFloorLevelId
+                                                                            });
+                                                                            
                                                                             if (floor.id === currentFloorLevelId) {
-                                                                                const modelId = `model_${floor.id}`;
-                                                                                setObjects(prev => prev.filter(obj => obj.id !== modelId));
-                                                                                console.log('🗑️ 已从场景中移除模型:', modelId);
+                                                                                console.log('💡 立即添加模型到当前场景');
+                                                                                const modelObj = {
+                                                                                    id: `model_${floor.id}`,
+                                                                                    type: 'custom_model',
+                                                                                    name: file.name || '3D底图模型',
+                                                                                    locked: true, // 🔒 锁定，不允许修改
+                                                                                    modelUrl: url,
+                                                                                    modelScale: 1,
+                                                                                    position: autoPosition,
+                                                                                    scale: autoScale,
+                                                                                    rotation: [0, 0, 0],
+                                                                                    visible: true,
+                                                                                    opacity: 1,
+                                                                                    color: '#ffffff'
+                                                                                };
+                                                                                
+                                                                                console.log('🏗️ 创建的模型对象:', modelObj);
+                                                                                
+                                                                                // 移除旧的模型对象（如果有）
+                                                                                setObjects(prev => {
+                                                                                    const filtered = prev.filter(obj => obj.id !== modelObj.id);
+                                                                                    return [...filtered, modelObj];
+                                                                                });
                                                                             }
-                                                                        }
-                                                                    }}
-                                                                    className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
-                                                                    title="清除"
-                                                                >
-                                                                    <Trash2 size={12} />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setCurrentFloorLevelId(floor.id);
-                                                                    document.getElementById(`floor-glb-upload-${floor.id}`).click();
+                                                                            
+                                                                            alert('✅ 3D模型已上传并显示\n\n缩放: 1:1 (原始尺寸)\n位置: 底图中心');
+                                                                    } catch (error) {
+                                                                        console.error('模型加载失败:', error);
+                                                                        alert('模型加载失败: ' + error.message);
+                                                                    } finally {
+                                                                        e.target.value = '';
+                                                                    }
                                                                 }}
-                                                                className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-gray-400 hover:text-white hover:bg-[#222] rounded transition-all border border-dashed border-[#333]"
-                                                            >
-                                                                <Upload size={12} />
-                                                                <span>上传GLB模型</span>
-                                                            </button>
-                                                        )}
-                                                        <input
-                                                            id={`floor-glb-upload-${floor.id}`}
-                                                            type="file"
-                                                            className="hidden"
-                                                            accept=".glb,.gltf"
-                                                            onChange={async (e) => {
-                                                                const file = e.target.files[0];
-                                                                if (!file) return;
-
-                                                                if (file.size > 50 * 1024 * 1024) {
-                                                                    alert('文件过大！请选择小于 50MB 的模型文件。');
-                                                                    e.target.value = '';
-                                                                    return;
-                                                                }
-
-                                                                try {
-                                                                    // 🔑 上传GLB模型到Supabase Storage
-                                                                    console.log('📤 开始上传GLB模型到Supabase Storage...');
-
-                                                                    // 生成安全的文件名（移除中文和特殊字符）
-                                                                    const timestamp = Date.now();
-                                                                    const fileExt = file.name.split('.').pop();
-                                                                    const safeFileName = `glb-models/${timestamp}.${fileExt}`;
-
-                                                                    console.log('📝 原始文件名:', file.name);
-                                                                    console.log('📝 安全文件名:', safeFileName);
-
-                                                                    const { data: uploadData, error: uploadError } = await supabase.storage
-                                                                        .from('digital-twin-assets')
-                                                                        .upload(safeFileName, file, {
-                                                                            cacheControl: '3600',
-                                                                            upsert: false
-                                                                        });
-
-                                                                    if (uploadError) {
-                                                                        console.error('❌ 上传GLB模型失败:', uploadError);
-                                                                        alert('上传模型失败: ' + uploadError.message);
-                                                                        return;
-                                                                    }
-
-                                                                    // 获取公开URL
-                                                                    const { data: urlData } = supabase.storage
-                                                                        .from('digital-twin-assets')
-                                                                        .getPublicUrl(safeFileName);
-
-                                                                    const url = urlData.publicUrl;
-                                                                    console.log('✅ GLB模型上传成功:', url);
-
-                                                                    // 自动计算模型的缩放和位置
-                                                                    let autoScale = [1, 1, 1];
-                                                                    let autoPosition = [0, 0, 0];
-
-                                                                    // 获取当前楼层的底图数据
-                                                                    const mapData = floor.baseMapData;
-
-                                                                    if (mapData) {
-                                                                        console.log('根据底图数据自动计算模型变换:', mapData);
-
-                                                                        // 🔑 安全检查：确保actualSize存在
-                                                                        if (mapData.actualSize && mapData.resolution) {
-                                                                            // 计算底图的实际尺寸（米）
-                                                                            const mapWidth = mapData.actualSize.width * mapData.resolution;
-                                                                            const mapHeight = mapData.actualSize.height * mapData.resolution;
-
-                                                                            console.log('  - 底图尺寸:', mapWidth, 'x', mapHeight, '米');
-
-                                                                            // 🔑 先使用临时缩放，模型加载后会自动计算真实缩放
-                                                                            // 标记需要自动适配
-                                                                            autoScale = [1, 1, 1]; // 临时值，会在模型加载后更新
-
-                                                                            console.log('📐 将在模型加载后自动计算缩放以适配底图');
-
-                                                                            // 🔑 底图居中在(0,0,0)，所以模型初始位置也是(0,0,0)
-                                                                            // 实际位置会在AutoScaleGltf组件中计算
-                                                                            autoPosition = [0, 0.01, 0];
-
-                                                                            console.log('  - 底图原点:', [mapData.origin.x, mapData.origin.y]);
-                                                                            console.log('  - 底图居中在世界原点 (0, 0, 0)');
-                                                                            console.log('  - 自动缩放:', autoScale);
-                                                                            console.log('  - 自动位置:', autoPosition);
-                                                                        } else {
-                                                                            console.warn('⚠️ 底图数据不完整，使用默认变换');
-                                                                        }
-                                                                    } else {
-                                                                        console.log('⚠️ 楼层没有底图数据，使用默认变换');
-                                                                    }
-
-                                                                    // 保存模型数据到楼层
-                                                                    setFloors(prev => prev.map(scene => {
-                                                                        if (scene.id === currentFloorId) {
-                                                                            return {
-                                                                                ...scene,
-                                                                                floorLevels: scene.floorLevels.map(fl =>
-                                                                                    fl.id === floor.id
-                                                                                        ? {
-                                                                                            ...fl,
-                                                                                            sceneModelData: {
-                                                                                                fileName: file.name,
-                                                                                                url: url,
-                                                                                                scale: autoScale,
-                                                                                                position: autoPosition
-                                                                                            }
-                                                                                        }
-                                                                                        : fl
-                                                                                )
-                                                                            };
-                                                                        }
-                                                                        return scene;
-                                                                    }));
-
-                                                                    // 💾 保存到Supabase（异步，不阻塞UI）
-                                                                    saveGLBModel(floor.id, {
-                                                                        fileName: file.name,
-                                                                        url: url,
-                                                                        scale: autoScale,
-                                                                        position: autoPosition
-                                                                    }).then(() => {
-                                                                        console.log('✅ GLB模型已保存到Supabase');
-                                                                    }).catch(error => {
-                                                                        console.error('❌ 保存GLB模型到Supabase失败:', error);
-                                                                        console.error('错误详情:', JSON.stringify(error, null, 2));
-                                                                    });
-
-                                                                    // 🔑 立即创建模型对象并添加到场景
-                                                                    console.log('🔍 检查是否添加到当前场景:', {
-                                                                        floorId: floor.id,
-                                                                        currentFloorLevelId: currentFloorLevelId,
-                                                                        match: floor.id === currentFloorLevelId
-                                                                    });
-
-                                                                    if (floor.id === currentFloorLevelId) {
-                                                                        console.log('💡 立即添加模型到当前场景');
-                                                                        const modelObj = {
-                                                                            id: `model_${floor.id}`,
-                                                                            type: 'custom_model',
-                                                                            name: file.name || '3D底图模型',
-                                                                            locked: true, // 🔒 锁定，不允许修改
-                                                                            modelUrl: url,
-                                                                            modelScale: 1,
-                                                                            position: autoPosition,
-                                                                            scale: autoScale,
-                                                                            rotation: [0, 0, 0],
-                                                                            visible: true,
-                                                                            opacity: 1,
-                                                                            color: '#ffffff'
-                                                                        };
-
-                                                                        console.log('🏗️ 创建的模型对象:', modelObj);
-
-                                                                        // 移除旧的模型对象（如果有）
-                                                                        setObjects(prev => {
-                                                                            const filtered = prev.filter(obj => obj.id !== modelObj.id);
-                                                                            return [...filtered, modelObj];
-                                                                        });
-                                                                    }
-
-                                                                    // 移除成功弹窗，后台自动上传
-                                                                    console.log('✅ 3D模型已上传并显示');
-                                                                } catch (error) {
-                                                                    console.error('模型加载失败:', error);
-                                                                    alert('模型加载失败: ' + error.message);
-                                                                } finally {
-                                                                    e.target.value = '';
-                                                                }
-                                                            }}
-                                                        />
+                                                            />
+                                                        </div>
+                                                        
+                                                        {/* 统计信息 */}
+                                                        <div className="pt-2 border-t border-[#2a2a2a] text-[10px] text-gray-500 space-y-0.5">
+                                                            <div>对象数量: {floor.objects?.length || 0}</div>
+                                                            {floor.waypointsData && <div className="text-green-400">✓ 点位: {floor.waypointsData.length}</div>}
+                                                            {floor.pathsData && <div className="text-green-400">✓ 路径: {floor.pathsData.length}</div>}
+                                                        </div>
                                                     </div>
-
-                                                    {/* 统计信息 */}
-                                                    <div className="pt-2 border-t border-[#2a2a2a] text-[10px] text-gray-500 space-y-0.5">
-                                                        <div>对象数量: {floor.objects?.length || 0}</div>
-                                                        {floor.waypointsData && <div className="text-green-400">✓ 点位: {floor.waypointsData.length}</div>}
-                                                        {floor.pathsData && <div className="text-green-400">✓ 路径: {floor.pathsData.length}</div>}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         <div className="p-4 border-t border-[#2a2a2a] flex gap-2 justify-end flex-shrink-0 bg-[#161616]">
@@ -5850,55 +5749,29 @@ const App = () => {
 
                                         console.log('🚀 [新增场景] 创建空场景:', sceneName);
 
-                                        // 创建新场景，使用对话框中配置的楼层
+                                        // 创建新场景，只包含一个空的1F楼层
                                         const newFloor = {
                                             id: uuidv4(),
                                             name: sceneName,
-                                            description: '',
+                                            description: '空场景',
                                             isDefault: false,
-                                            createdAt: new Date().toISOString(),
-                                            createdBy: '当前用户', // TODO: 替换为实际用户名
-                                            // 🏢 楼层列表：使用对话框中的楼层配置
-                                            floorLevels: (editingFloor.floorLevels || []).map(floor => ({
-                                                ...floor,
-                                                id: floor.id || `floor-${Date.now()}-${Math.random()}`,
+                                            // 🏢 楼层列表：创建默认的1F楼层（空的）
+                                            floorLevels: [{
+                                                id: `floor-${Date.now()}`, // 使用唯一ID
+                                                name: '1F',
                                                 height: 0,
                                                 visible: true,
-                                                objects: floor.objects || [],
-                                                baseMapData: floor.baseMapData || null,
+                                                objects: [], // 空数组，不包含任何对象
+                                                baseMapData: null,
                                                 baseMapId: null,
                                                 waypointsData: null,
                                                 pathsData: null,
                                                 sceneModelData: null
-                                            }))
+                                            }]
                                         };
 
-                                        // 检查是否需要显示冲突确认对话框
+                                        // 添加到场景列表
                                         const hasOnlyDefaultScene = floors.length === 1 && floors[0].isDefault;
-                                        const defaultSceneHasContent = objects.some(obj =>
-                                            !obj.isBaseMap &&
-                                            obj.type !== 'waypoint' &&
-                                            obj.type !== 'path_line' &&
-                                            !obj.sourceRefId
-                                        );
-
-                                        if (hasOnlyDefaultScene && defaultSceneHasContent) {
-                                            // 默认场景有内容，显示确认对话框
-                                            console.log('⚠️ 默认场景有内容，显示确认对话框');
-                                            setPendingNewSceneData({
-                                                newFloor,
-                                                finalObjects: [],
-                                                newEntities: [],
-                                                newPaths: [],
-                                                baseMap: null,
-                                                sceneModelObj: null
-                                            });
-                                            setShowOverwriteConfirmDialog(true);
-                                            setEditingFloor(null);
-                                            return;
-                                        }
-
-                                        // 直接添加场景（没有冲突）
                                         if (hasOnlyDefaultScene) {
                                             // 替换默认场景
                                             setFloors([newFloor]);
@@ -5912,7 +5785,7 @@ const App = () => {
                                         setEditingFloor(null);
                                         setShowFloorManager(false);
 
-                                        console.log(`✅ 场景创建成功: ${sceneName}`);
+                                        alert(`✅ 场景创建成功\n\n场景名称: ${sceneName}\n已创建默认楼层: 1F\n\n请在"编辑场景"中为楼层添加地图数据。`);
                                         return;
                                     }
 
@@ -5932,10 +5805,10 @@ const App = () => {
                                         return f;
                                     });
                                     setFloors(newFloors);
-
+                                    
                                     setEditingFloor(null);
                                     setShowFloorManager(false);
-
+                                    
                                     alert('✅ 场景名称已更新');
                                 }}
                                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-bold"
@@ -5946,7 +5819,7 @@ const App = () => {
                     </div>
                 </div>
             )}
-
+            
             {/* 楼层JSON数据上传 */}
             <input
                 id="floor-json-upload"
@@ -5956,16 +5829,16 @@ const App = () => {
                 onChange={async (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
-
+                    
                     try {
                         const text = await file.text();
                         const jsonData = JSON.parse(text);
-
+                        
                         console.log('📤 上传JSON到楼层:', currentFloorLevel?.name);
-
+                        
                         // 调用loadMapFromJSON，它会自动保存到当前楼层
                         loadMapFromJSON(jsonData);
-
+                        
                         alert('✅ 数据源加载成功！');
                     } catch (error) {
                         console.error('JSON解析失败:', error);
@@ -6261,19 +6134,16 @@ const App = () => {
                                             setShowConflictDialog(true);
                                         }
 
-                                        // 保留所有非路网相关的现有对象（墙壁、模型、地板等）
-                                        const existingNonRoadmapObjects = objects.filter(o =>
-                                            !o.sourceRefId &&  // 不是路网点位
-                                            !o.isBaseMap &&    // 不是旧的底图
-                                            o.type !== 'path'  // 不是路径
-                                        );
+                                        // 保留装饰物
+                                        const decorators = objects.filter(o => !o.sourceRefId && !o.isBaseMap && o.type !== 'floor');
 
                                         // 组合最终对象
                                         const finalObjects = [
-                                            ...existingNonRoadmapObjects,  // 保留所有现有对象
-                                            mergeDialogData.baseMap,       // 新底图
-                                            ...mergedEntities,             // 合并后的路网点位
-                                            ...mergeDialogData.newPaths    // 新路径
+                                            initialObjects[0],
+                                            mergeDialogData.baseMap,
+                                            ...mergedEntities,
+                                            ...mergeDialogData.newPaths,
+                                            ...decorators
                                         ].filter(Boolean);
 
                                         setObjects(finalObjects);
@@ -6289,11 +6159,10 @@ const App = () => {
                                         // ========================================
                                         const confirmed = window.confirm(
                                             '⚠️ 危险操作确认\n\n' +
-                                            '选择"完全覆盖"将删除所有路网相关实体，包括：\n' +
-                                            '• 所有路网点位\n' +
-                                            '• 所有路径\n' +
-                                            '• 旧的底图\n\n' +
-                                            '但会保留：墙壁、模型、地板等非路网对象\n\n' +
+                                            '选择"完全覆盖"将删除所有现有实体，包括：\n' +
+                                            '• 已配置的 3D 模型\n' +
+                                            '• 自定义颜色和样式\n' +
+                                            '• 所有装饰物和虚拟对象\n\n' +
                                             '确定要继续吗？'
                                         );
 
@@ -6301,19 +6170,12 @@ const App = () => {
 
                                         console.log('⚠️ 执行策略 B：完全覆盖');
 
-                                        // 保留所有非路网相关的现有对象（墙壁、模型、地板等）
-                                        const existingNonRoadmapObjects = objects.filter(o =>
-                                            !o.sourceRefId &&  // 不是路网点位
-                                            !o.isBaseMap &&    // 不是旧的底图
-                                            o.type !== 'path'  // 不是路径
-                                        );
-
-                                        // 组合最终对象
+                                        // 简单暴力：全删全换
                                         const finalObjects = [
-                                            ...existingNonRoadmapObjects,  // 保留所有现有对象
-                                            mergeDialogData.baseMap,       // 新底图
-                                            ...mergeDialogData.newEntities, // 新点位
-                                            ...mergeDialogData.newPaths    // 新路径
+                                            initialObjects[0],
+                                            mergeDialogData.baseMap,
+                                            ...mergeDialogData.newEntities,
+                                            ...mergeDialogData.newPaths
                                         ].filter(Boolean);
 
                                         setObjects(finalObjects);
@@ -6388,9 +6250,9 @@ const App = () => {
                     {/* Left Panel */}
                     <div className="w-64 flex flex-col border-r border-[#1a1a1a] bg-[#0f0f0f]">
                         <div className="h-14 flex items-center px-4 gap-3 border-b border-[#1a1a1a]">
-                            <img
+                            <img 
                                 src={import.meta.env.BASE_URL + 'logo.png'}
-                                alt="Logo"
+                                alt="Logo" 
                                 className="w-8 h-8 object-contain rounded p-1"
                                 onError={(e) => {
                                     // 如果图片加载失败，显示文字Logo
@@ -6450,29 +6312,29 @@ const App = () => {
                                     <div className="space-y-0.5">
                                         {(() => {
                                             const topLevelObjects = [...filteredObjects].reverse().filter(obj => !obj.parentId);
-                                            console.log('📋 顶层对象列表:', topLevelObjects.map(o => ({
-                                                name: o.name,
-                                                type: o.type,
-                                                parentId: o.parentId
+                                            console.log('📋 顶层对象列表:', topLevelObjects.map(o => ({ 
+                                                name: o.name, 
+                                                type: o.type, 
+                                                parentId: o.parentId 
                                             })));
                                             return topLevelObjects.map(obj => (
-                                                <LayerItem
-                                                    key={obj.id}
-                                                    obj={obj}
-                                                    allObjects={filteredObjects}
-                                                    selectedIds={selectedIds}
-                                                    editingNameId={editingNameId}
-                                                    editingName={editingName}
-                                                    setEditingName={setEditingName}
-                                                    setToolMode={setToolMode}
-                                                    setSelectedId={setSelectedId}
-                                                    setSelectedIds={setSelectedIds}
-                                                    startEditingName={startEditingName}
-                                                    saveEditingName={saveEditingName}
-                                                    cancelEditingName={cancelEditingName}
-                                                    updateObject={updateObject}
-                                                />
-                                            ));
+                                            <LayerItem
+                                                key={obj.id}
+                                                obj={obj}
+                                                allObjects={filteredObjects}
+                                                selectedIds={selectedIds}
+                                                editingNameId={editingNameId}
+                                                editingName={editingName}
+                                                setEditingName={setEditingName}
+                                                setToolMode={setToolMode}
+                                                setSelectedId={setSelectedId}
+                                                setSelectedIds={setSelectedIds}
+                                                startEditingName={startEditingName}
+                                                saveEditingName={saveEditingName}
+                                                cancelEditingName={cancelEditingName}
+                                                updateObject={updateObject}
+                                            />
+                                        ));
                                         })()}
                                     </div>
                                 </div>
@@ -6538,26 +6400,14 @@ const App = () => {
                 {/* ... Toolbars ... */}
                 {!isPreviewMode && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 glass-panel rounded-xl p-1 flex gap-1 shadow-2xl bg-[#09090b]">
-                        {/* 选择工具已隐藏 - 选择是无感操作 */}
+                        <ToolBtn icon={MousePointer2} active={toolMode === 'select' && !transformMode && !isEditingPoints} onClick={() => { setToolMode('select'); setTransformMode(null); }} title="选择 (Shift+拖动框选)" />
+                        <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
                         {/* 绘制路径按钮 - 暂时隐藏 */}
                         {false && <ToolBtn icon={Spline} active={toolMode === 'draw_path'} onClick={() => { setToolMode('draw_path'); setTransformMode(null); }} title="绘制路径 (点击创建点/连接点)" />}
                         {false && <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>}
-                        <ToolBtn
-                            icon={transformMode === 'rotate' ? RotateCw : Move}
-                            active={toolMode === 'select' && (transformMode === 'translate' || transformMode === 'rotate')}
-                            onClick={() => {
-                                setToolMode('select');
-                                // 在translate和rotate之间切换
-                                setTransformMode(prev => {
-                                    const newMode = prev === 'rotate' ? 'translate' : 'rotate';
-                                    console.log('🔧 切换变换模式:', prev, '->', newMode);
-                                    return newMode;
-                                });
-                                setIsBoxSelecting(false);
-                            }}
-                            title={`变换 (${transformMode === 'rotate' ? '旋转' : '移动'}) - 点击切换 或 按W/E`}
-                        />
-                        {/* 缩放工具已隐藏 - 使用快捷键代替 */}
+                        <ToolBtn icon={Move} active={toolMode === 'select' && transformMode === 'translate'} onClick={() => { setToolMode('select'); setTransformMode('translate'); setIsBoxSelecting(false); }} title="移动" />
+                        <ToolBtn icon={RotateCw} active={toolMode === 'select' && transformMode === 'rotate'} onClick={() => { setToolMode('select'); setTransformMode('rotate'); }} title="旋转" />
+                        <ToolBtn icon={Maximize} active={toolMode === 'select' && transformMode === 'scale'} onClick={() => { setToolMode('select'); setTransformMode('scale'); }} title="缩放" />
                         <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
                         <ToolBtn icon={ArrowDownToLine} onClick={snapObjectToGround} title="贴齐地面" />
                         <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
@@ -6585,8 +6435,8 @@ const App = () => {
                                     key={floor.id}
                                     onClick={() => setCurrentFloorLevelId(floor.id)}
                                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 min-w-[60px] ${currentFloorLevelId === floor.id
-                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30'
-                                        : 'text-gray-400 hover:bg-[#1a1a1a] hover:text-white'
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30'
+                                            : 'text-gray-400 hover:bg-[#1a1a1a] hover:text-white'
                                         }`}
                                     title={`切换到 ${floor.name}`}
                                 >
@@ -6723,10 +6573,10 @@ const App = () => {
                     </div>
                 )}
 
-                <Canvas
-                    shadows
-                    dpr={[1, 2]}
-                    gl={{
+                <Canvas 
+                    shadows 
+                    dpr={[1, 2]} 
+                    gl={{ 
                         antialias: true,
                         preserveDrawingBuffer: true,
                         powerPreference: 'high-performance'
@@ -6977,7 +6827,7 @@ const App = () => {
                                         enableSnap={enableSnap}
                                     />
                                 ))}
-
+                                
                                 {/* 渲染组对象的包围盒 */}
                                 {displayObjects.filter(obj => obj.type === 'group').map(group => {
                                     const groupChildren = displayObjects.filter(child => child.parentId === group.id);
@@ -7001,9 +6851,9 @@ const App = () => {
                                     return obj && obj.type === 'group';
                                 });
                                 const shouldShowMultiSelect = selectedIds.length > 1 || hasGroupSelected;
-
+                                
                                 if (!shouldShowMultiSelect) return null;
-
+                                
                                 return (
                                     <MultiSelectTransformControls
                                         selectedObjects={displayObjects.filter(o => selectedIds.includes(o.id))}
@@ -7158,7 +7008,7 @@ const App = () => {
                                             onClick={() => {
                                                 // 俯视图: Z轴最小值（屏幕上方）, 透视图/前视图: Y轴最大值（垂直向上）
                                                 const axisIndex = cameraView === 'top' ? 2 : 1;
-
+                                                
                                                 // 计算每个物体的实际顶部/底部位置
                                                 const getEdgePosition = (obj, isTop) => {
                                                     const centerPos = obj.position[axisIndex] || 0;
@@ -7170,8 +7020,8 @@ const App = () => {
                                                     // 其他物体原点在底部
                                                     return centerPos;
                                                 };
-
-                                                const targetValue = cameraView === 'top'
+                                                
+                                                const targetValue = cameraView === 'top' 
                                                     ? Math.min(...selectedIds.map(id => {
                                                         const obj = objects.find(o => o.id === id);
                                                         return getEdgePosition(obj, false); // 俯视图：最小值是上方
@@ -7180,15 +7030,15 @@ const App = () => {
                                                         const obj = objects.find(o => o.id === id);
                                                         return getEdgePosition(obj, true); // 透视图：最大值是上方
                                                     }));
-
+                                                
                                                 const newObjects = objects.map(obj => {
                                                     if (selectedIds.includes(obj.id)) {
                                                         const newPos = [...obj.position];
                                                         // 计算新的中心位置
                                                         if (['wall', 'column', 'door', 'cube'].includes(obj.type)) {
                                                             const halfSize = (obj.scale[axisIndex] || 1) / 2;
-                                                            newPos[axisIndex] = cameraView === 'top'
-                                                                ? targetValue + halfSize
+                                                            newPos[axisIndex] = cameraView === 'top' 
+                                                                ? targetValue + halfSize 
                                                                 : targetValue - halfSize;
                                                         } else {
                                                             newPos[axisIndex] = targetValue;
@@ -7244,7 +7094,7 @@ const App = () => {
                                             onClick={() => {
                                                 // 俯视图: Z轴最大值（屏幕下方）, 透视图/前视图: Y轴最小值（垂直向下）
                                                 const axisIndex = cameraView === 'top' ? 2 : 1;
-
+                                                
                                                 // 计算每个物体的实际底部位置
                                                 const getEdgePosition = (obj, isTop) => {
                                                     const centerPos = obj.position[axisIndex] || 0;
@@ -7256,8 +7106,8 @@ const App = () => {
                                                     // 其他物体原点在底部
                                                     return centerPos;
                                                 };
-
-                                                const targetValue = cameraView === 'top'
+                                                
+                                                const targetValue = cameraView === 'top' 
                                                     ? Math.max(...selectedIds.map(id => {
                                                         const obj = objects.find(o => o.id === id);
                                                         return getEdgePosition(obj, true); // 俯视图：最大值是下方
@@ -7266,15 +7116,15 @@ const App = () => {
                                                         const obj = objects.find(o => o.id === id);
                                                         return getEdgePosition(obj, false); // 透视图：最小值是下方
                                                     }));
-
+                                                
                                                 const newObjects = objects.map(obj => {
                                                     if (selectedIds.includes(obj.id)) {
                                                         const newPos = [...obj.position];
                                                         // 计算新的中心位置
                                                         if (['wall', 'column', 'door', 'cube'].includes(obj.type)) {
                                                             const halfSize = (obj.scale[axisIndex] || 1) / 2;
-                                                            newPos[axisIndex] = cameraView === 'top'
-                                                                ? targetValue - halfSize
+                                                            newPos[axisIndex] = cameraView === 'top' 
+                                                                ? targetValue - halfSize 
                                                                 : targetValue + halfSize;
                                                         } else {
                                                             newPos[axisIndex] = targetValue;
@@ -7296,7 +7146,7 @@ const App = () => {
                                             <span>下</span>
                                         </button>
                                     </div>
-
+                                    
                                     {/* 水平和垂直均分 */}
                                     <div className="grid grid-cols-2 gap-2 mt-2">
                                         <button
@@ -7382,52 +7232,21 @@ const App = () => {
                                     <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a]">
                                         <div className="text-[10px] text-gray-500 mb-3 flex items-center gap-1"><RefreshCw size={10} /> 切换模型 </div>
                                         <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    console.log('批量转换CNC - 选中对象数:', selectedIds.length);
-                                                    try {
-                                                        const newObjects = objects.map(obj => {
-                                                            if (selectedIds.includes(obj.id)) {
-                                                                const newPos = [...obj.position];
-                                                                // CNC原点在底部，Y=0即可
-                                                                newPos[1] = 0;
-                                                                return {
-                                                                    ...obj,
-                                                                    type: 'cnc',
-                                                                    modelUrl: `${import.meta.env.BASE_URL}cnc.glb`,
-                                                                    modelScale: 1,
-                                                                    name: `CNC加工中心`,
-                                                                    scale: [1, 1, 1],
-                                                                    position: newPos,
-                                                                    rotation: [0, 0, 0]
-                                                                };
-                                                            }
-                                                            return obj;
-                                                        });
-                                                        setObjects(newObjects);
-                                                        commitHistory(newObjects);
-                                                        console.log('批量转换CNC完成');
-                                                    } catch (error) {
-                                                        console.error('批量转换CNC失败:', error);
-                                                    }
-                                                }}
-                                                className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
-                                            >
-                                                <Server size={20} />
-                                                <span className="text-[10px]">CNC</span>
-                                            </button>
-                                            <button
-                                                onClick={() => {
+                                        <button
+                                            onClick={() => {
+                                                console.log('批量转换CNC - 选中对象数:', selectedIds.length);
+                                                try {
                                                     const newObjects = objects.map(obj => {
                                                         if (selectedIds.includes(obj.id)) {
                                                             const newPos = [...obj.position];
-                                                            // 占位方块原点在中心，抬高半个高度
-                                                            newPos[1] = 0.5;
+                                                            // CNC原点在底部，Y=0即可
+                                                            newPos[1] = 0;
                                                             return {
                                                                 ...obj,
-                                                                type: 'cube',
-                                                                modelUrl: null,
-                                                                name: `占位方块`,
+                                                                type: 'cnc',
+                                                                modelUrl: `${import.meta.env.BASE_URL}cnc.glb`,
+                                                                modelScale: 1,
+                                                                name: `CNC加工中心`,
                                                                 scale: [1, 1, 1],
                                                                 position: newPos,
                                                                 rotation: [0, 0, 0]
@@ -7437,68 +7256,99 @@ const App = () => {
                                                     });
                                                     setObjects(newObjects);
                                                     commitHistory(newObjects);
-                                                }}
-                                                className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
-                                            >
-                                                <Box size={20} />
-                                                <span className="text-[10px]">占位方块</span>
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    const newObjects = objects.map(obj => {
-                                                        if (selectedIds.includes(obj.id)) {
-                                                            const newPos = [...obj.position];
-                                                            // 柱子原点在中心，高度4米，抬高2米
-                                                            newPos[1] = 2;
-                                                            return {
-                                                                ...obj,
-                                                                type: 'column',
-                                                                modelUrl: null,
-                                                                name: `标准柱子`,
-                                                                scale: [0.6, 4, 0.6],
-                                                                position: newPos,
-                                                                rotation: [0, 0, 0]
-                                                            };
-                                                        }
-                                                        return obj;
-                                                    });
-                                                    setObjects(newObjects);
-                                                    commitHistory(newObjects);
-                                                }}
-                                                className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
-                                            >
-                                                <Columns size={20} />
-                                                <span className="text-[10px]">柱子</span>
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    const newObjects = objects.map(obj => {
-                                                        if (selectedIds.includes(obj.id)) {
-                                                            const newPos = [...obj.position];
-                                                            // 墙体原点在中心，高度3米，抬高1.5米
-                                                            newPos[1] = 1.5;
-                                                            return {
-                                                                ...obj,
-                                                                type: 'wall',
-                                                                modelUrl: null,
-                                                                name: `标准墙体`,
-                                                                scale: [4, 3, 0.2],
-                                                                position: newPos,
-                                                                rotation: [0, 0, 0]
-                                                            };
-                                                        }
-                                                        return obj;
-                                                    });
-                                                    setObjects(newObjects);
-                                                    commitHistory(newObjects);
-                                                }}
-                                                className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
-                                            >
-                                                <BrickWall size={20} />
-                                                <span className="text-[10px]">墙体</span>
-                                            </button>
+                                                    console.log('批量转换CNC完成');
+                                                } catch (error) {
+                                                    console.error('批量转换CNC失败:', error);
+                                                }
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                        >
+                                            <Server size={20} />
+                                            <span className="text-[10px]">CNC</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        // 占位方块原点在中心，抬高半个高度
+                                                        newPos[1] = 0.5;
+                                                        return {
+                                                            ...obj,
+                                                            type: 'cube',
+                                                            modelUrl: null,
+                                                            name: `占位方块`,
+                                                            scale: [1, 1, 1],
+                                                            position: newPos,
+                                                            rotation: [0, 0, 0]
+                                                        };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                        >
+                                            <Box size={20} />
+                                            <span className="text-[10px]">占位方块</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        // 柱子原点在中心，高度4米，抬高2米
+                                                        newPos[1] = 2;
+                                                        return {
+                                                            ...obj,
+                                                            type: 'column',
+                                                            modelUrl: null,
+                                                            name: `标准柱子`,
+                                                            scale: [0.6, 4, 0.6],
+                                                            position: newPos,
+                                                            rotation: [0, 0, 0]
+                                                        };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                        >
+                                            <Columns size={20} />
+                                            <span className="text-[10px]">柱子</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const newObjects = objects.map(obj => {
+                                                    if (selectedIds.includes(obj.id)) {
+                                                        const newPos = [...obj.position];
+                                                        // 墙体原点在中心，高度3米，抬高1.5米
+                                                        newPos[1] = 1.5;
+                                                        return {
+                                                            ...obj,
+                                                            type: 'wall',
+                                                            modelUrl: null,
+                                                            name: `标准墙体`,
+                                                            scale: [4, 3, 0.2],
+                                                            position: newPos,
+                                                            rotation: [0, 0, 0]
+                                                        };
+                                                    }
+                                                    return obj;
+                                                });
+                                                setObjects(newObjects);
+                                                commitHistory(newObjects);
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                        >
+                                            <BrickWall size={20} />
+                                            <span className="text-[10px]">墙体</span>
+                                        </button>
                                         </div>
-
+                                        
                                         {/* 自定义资产 */}
                                         {customAssets.length > 0 && (
                                             <>
@@ -7693,7 +7543,83 @@ const App = () => {
                                     </div>
                                 </PropSection>
 
-
+                                {/* 缩放属性 */}
+                                <PropSection title="缩放">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">缩放 X</label>
+                                            <SmartInput
+                                                value={parseFloat((selectedIds.reduce((sum, id) => {
+                                                    const obj = objects.find(o => o.id === id);
+                                                    return sum + (obj?.scale[0] || 1);
+                                                }, 0) / selectedIds.length).toFixed(2))}
+                                                onChange={(val) => {
+                                                    const avg = selectedIds.reduce((sum, id) => {
+                                                        const obj = objects.find(o => o.id === id);
+                                                        return sum + (obj?.scale[0] || 1);
+                                                    }, 0) / selectedIds.length;
+                                                    const ratio = val / avg;
+                                                    const newObjects = objects.map(obj => {
+                                                        if (selectedIds.includes(obj.id)) {
+                                                            return { ...obj, scale: [obj.scale[0] * ratio, obj.scale[1], obj.scale[2]] };
+                                                        }
+                                                        return obj;
+                                                    });
+                                                    setObjects(newObjects);
+                                                    commitHistory(newObjects);
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">缩放 Y</label>
+                                            <SmartInput
+                                                value={parseFloat((selectedIds.reduce((sum, id) => {
+                                                    const obj = objects.find(o => o.id === id);
+                                                    return sum + (obj?.scale[1] || 1);
+                                                }, 0) / selectedIds.length).toFixed(2))}
+                                                onChange={(val) => {
+                                                    const avg = selectedIds.reduce((sum, id) => {
+                                                        const obj = objects.find(o => o.id === id);
+                                                        return sum + (obj?.scale[1] || 1);
+                                                    }, 0) / selectedIds.length;
+                                                    const ratio = val / avg;
+                                                    const newObjects = objects.map(obj => {
+                                                        if (selectedIds.includes(obj.id)) {
+                                                            return { ...obj, scale: [obj.scale[0], obj.scale[1] * ratio, obj.scale[2]] };
+                                                        }
+                                                        return obj;
+                                                    });
+                                                    setObjects(newObjects);
+                                                    commitHistory(newObjects);
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-[11px] text-gray-500 w-16 shrink-0">缩放 Z</label>
+                                            <SmartInput
+                                                value={parseFloat((selectedIds.reduce((sum, id) => {
+                                                    const obj = objects.find(o => o.id === id);
+                                                    return sum + (obj?.scale[2] || 1);
+                                                }, 0) / selectedIds.length).toFixed(2))}
+                                                onChange={(val) => {
+                                                    const avg = selectedIds.reduce((sum, id) => {
+                                                        const obj = objects.find(o => o.id === id);
+                                                        return sum + (obj?.scale[2] || 1);
+                                                    }, 0) / selectedIds.length;
+                                                    const ratio = val / avg;
+                                                    const newObjects = objects.map(obj => {
+                                                        if (selectedIds.includes(obj.id)) {
+                                                            return { ...obj, scale: [obj.scale[0], obj.scale[1], obj.scale[2] * ratio] };
+                                                        }
+                                                        return obj;
+                                                    });
+                                                    setObjects(newObjects);
+                                                    commitHistory(newObjects);
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </PropSection>
 
                                 {/* 操作按钮 */}
                                 <PropSection title="操作">
@@ -7782,135 +7708,133 @@ const App = () => {
                                 </div>
                                 {['cnc', 'column', 'door', 'custom_model'].includes(selectedObject.type) && (
                                     <div className="border-b border-[#1a1a1a]">
-                                        <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
-                                            {selectedObject.modelUrl && (
-                                                <div className="mb-3">
-                                                    <div className="text-[11px] text-gray-500 mb-2">模型缩放</div>
-                                                    <div className="flex flex-col w-full gap-2">
-                                                        <div className="flex items-center gap-2 w-full">
-                                                            <input
-                                                                type="range"
-                                                                min="0.001"
-                                                                max="10"
-                                                                step="0.001"
-                                                                value={selectedObject.modelScale || 1}
-                                                                onChange={(e) => updateObject(selectedId, 'modelScale', parseFloat(e.target.value))}
-                                                                className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                                            />
-                                                            <input
-                                                                type="number"
-                                                                value={selectedObject.modelScale || 1}
-                                                                onChange={(e) => updateObject(selectedId, 'modelScale', parseFloat(e.target.value) || 0.1)}
-                                                                step="0.001"
-                                                                className="w-16 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
-                                                            />
-                                                        </div>
-                                                        <div className="flex w-full bg-[#1a1a1a] rounded overflow-hidden border border-[#2a2a2a]">
-                                                            <button
-                                                                onClick={() => updateObject(selectedId, 'modelScale', 0.001)}
-                                                                className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors border-r border-[#2a2a2a]"
-                                                                title="毫米单位"
-                                                            >
-                                                                mm
-                                                            </button>
-                                                            <button
-                                                                onClick={() => updateObject(selectedId, 'modelScale', 0.01)}
-                                                                className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors border-r border-[#2a2a2a]"
-                                                                title="厘米单位"
-                                                            >
-                                                                cm
-                                                            </button>
-                                                            <button
-                                                                onClick={() => updateObject(selectedId, 'modelScale', 1)}
-                                                                className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors"
-                                                                title="米单位"
-                                                            >
-                                                                m
-                                                            </button>
-                                                        </div>
+                                    <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
+                                        {selectedObject.modelUrl && (
+                                            <div className="mb-3">
+                                                <div className="text-[11px] text-gray-500 mb-2">模型缩放</div>
+                                                <div className="flex flex-col w-full gap-2">
+                                                    <div className="flex items-center gap-2 w-full">
+                                                        <input 
+                                                            type="range" 
+                                                            min="0.001" 
+                                                            max="10" 
+                                                            step="0.001" 
+                                                            value={selectedObject.modelScale || 1} 
+                                                            onChange={(e) => updateObject(selectedId, 'modelScale', parseFloat(e.target.value))} 
+                                                            className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500" 
+                                                        />
+                                                        <input
+                                                            type="number"
+                                                            value={selectedObject.modelScale || 1}
+                                                            onChange={(e) => updateObject(selectedId, 'modelScale', parseFloat(e.target.value) || 0.1)}
+                                                            step="0.001"
+                                                            className="w-20 shrink-0 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors text-center"
+                                                        />
+                                                    </div>
+                                                    <div className="flex w-full bg-[#1a1a1a] rounded overflow-hidden border border-[#2a2a2a]">
+                                                        <button 
+                                                            onClick={() => updateObject(selectedId, 'modelScale', 0.001)} 
+                                                            className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors border-r border-[#2a2a2a]" 
+                                                            title="毫米单位"
+                                                        >
+                                                            mm
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => updateObject(selectedId, 'modelScale', 0.01)} 
+                                                            className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors border-r border-[#2a2a2a]" 
+                                                            title="厘米单位"
+                                                        >
+                                                            cm
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => updateObject(selectedId, 'modelScale', 1)} 
+                                                            className="flex-1 py-1.5 hover:bg-[#333] text-[10px] font-medium text-gray-500 hover:text-white transition-colors" 
+                                                            title="米单位"
+                                                        >
+                                                            m
+                                                        </button>
                                                     </div>
                                                 </div>
-                                            )}
-
-                                        </div>
+                                            </div>
+                                        )}
+                                    </div>
                                     </div>
                                 )}
 
-
                                 {['waypoint', 'cube', 'cnc', 'column', 'door', 'custom_model'].includes(selectedObject.type) && (
                                     <div className="border-b border-[#1a1a1a]">
-                                        <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
-                                            <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a] text-center">
-                                                <div className="text-[10px] text-gray-500 mb-3 text-left flex items-center gap-1"><RefreshCw size={10} /> 切换模型 (Switch Model):</div>
-                                                <div className="grid grid-cols-2 gap-2 mb-3">
-                                                    <button
-                                                        onClick={() => {
-                                                            const asset = defaultAssets.find(a => a.type === 'cnc');
-                                                            if (asset) {
-                                                                const updated = {
-                                                                    ...selectedObject,
-                                                                    type: 'cnc',
-                                                                    modelUrl: asset.modelUrl || null,
-                                                                    modelScale: asset.modelScale || 1,
-                                                                    name: `${asset.label} - ${selectedObject.name}`
-                                                                };
-                                                                commitHistory(objects.map(o => o.id === selectedId ? updated : o));
-                                                            }
-                                                        }}
-                                                        className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
-                                                    >
-                                                        <Server size={20} />
-                                                        <span className="text-[10px]">CNC</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            const asset = defaultAssets.find(a => a.type === 'cube');
-                                                            if (asset) {
-                                                                const updated = {
-                                                                    ...selectedObject,
-                                                                    type: 'cube',
-                                                                    modelUrl: null,
-                                                                    scale: [1, 1, 1],
-                                                                    name: `${asset.label} - ${selectedObject.name}`
-                                                                };
-                                                                commitHistory(objects.map(o => o.id === selectedId ? updated : o));
-                                                            }
-                                                        }}
-                                                        className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
-                                                    >
-                                                        <Box size={20} />
-                                                        <span className="text-[10px]">占位方块</span>
-                                                    </button>
-                                                </div>
-                                                {customAssets.length > 0 && (
-                                                    <>
-                                                        <div className="text-[10px] text-gray-500 mb-2 text-left">自定义资产:</div>
-                                                        <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto custom-scrollbar">
-                                                            {customAssets.map((asset, idx) => (
-                                                                <button
-                                                                    key={idx}
-                                                                    onClick={() => {
-                                                                        const updated = {
-                                                                            ...selectedObject,
-                                                                            type: 'custom_model',
-                                                                            modelUrl: asset.modelUrl,
-                                                                            modelScale: asset.modelScale || 1,
-                                                                            name: `${asset.label} - ${selectedObject.name}`
-                                                                        };
-                                                                        commitHistory(objects.map(o => o.id === selectedId ? updated : o));
-                                                                    }}
-                                                                    className="flex flex-col items-center justify-center p-2 rounded border border-[#333] text-gray-500 hover:border-blue-500 hover:text-blue-400 transition-all"
-                                                                    title={asset.label}
-                                                                >
-                                                                    <Box size={16} className="mb-1" />
-                                                                    <span className="text-[9px] w-full truncate">{asset.label}</span>
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </>
-                                                )}
+                                    <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
+                                        <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a] text-center">
+                                            <div className="text-[10px] text-gray-500 mb-3 text-left flex items-center gap-1"><RefreshCw size={10} /> 切换模型 (Switch Model):</div>
+                                            <div className="grid grid-cols-2 gap-2 mb-3">
+                                                <button
+                                                    onClick={() => {
+                                                        const asset = defaultAssets.find(a => a.type === 'cnc');
+                                                        if (asset) {
+                                                            const updated = {
+                                                                ...selectedObject,
+                                                                type: 'cnc',
+                                                                modelUrl: asset.modelUrl || null,
+                                                                modelScale: asset.modelScale || 1,
+                                                                name: `${asset.label} - ${selectedObject.name}`
+                                                            };
+                                                            commitHistory(objects.map(o => o.id === selectedId ? updated : o));
+                                                        }
+                                                    }}
+                                                    className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                                >
+                                                    <Server size={20} />
+                                                    <span className="text-[10px]">CNC</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const asset = defaultAssets.find(a => a.type === 'cube');
+                                                        if (asset) {
+                                                            const updated = {
+                                                                ...selectedObject,
+                                                                type: 'cube',
+                                                                modelUrl: null,
+                                                                scale: [1, 1, 1],
+                                                                name: `${asset.label} - ${selectedObject.name}`
+                                                            };
+                                                            commitHistory(objects.map(o => o.id === selectedId ? updated : o));
+                                                        }
+                                                    }}
+                                                    className="flex flex-col items-center gap-2 p-3 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                                >
+                                                    <Box size={20} />
+                                                    <span className="text-[10px]">占位方块</span>
+                                                </button>
                                             </div>
+                                            {customAssets.length > 0 && (
+                                                <>
+                                                    <div className="text-[10px] text-gray-500 mb-2 text-left">自定义资产:</div>
+                                                    <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                                        {customAssets.map((asset, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                onClick={() => {
+                                                                    const updated = {
+                                                                        ...selectedObject,
+                                                                        type: 'custom_model',
+                                                                        modelUrl: asset.modelUrl,
+                                                                        modelScale: asset.modelScale || 1,
+                                                                        name: `${asset.label} - ${selectedObject.name}`
+                                                                    };
+                                                                    commitHistory(objects.map(o => o.id === selectedId ? updated : o));
+                                                                }}
+                                                                className="flex flex-col items-center justify-center p-2 rounded border border-[#333] text-gray-500 hover:border-blue-500 hover:text-blue-400 transition-all"
+                                                                title={asset.label}
+                                                            >
+                                                                <Box size={16} className="mb-1" />
+                                                                <span className="text-[9px] w-full truncate">{asset.label}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
+                                    </div>
                                     </div>
                                 )}
 
@@ -7986,175 +7910,250 @@ const App = () => {
                                 )}
 
                                 <div>
-                                    <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
-                                        {selectedObject.type === 'curved_wall' && (
-                                            <>
-                                                <div className="space-y-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-16">高度 (H)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={(selectedObject.height || 3).toFixed(2)}
-                                                            onChange={(e) => updateObject(selectedId, 'height', parseFloat(e.target.value) || 3)}
-                                                            className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
-                                                        />
-                                                        <span className="text-[10px] text-gray-600 w-6">m</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-16">厚度 (W)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={(selectedObject.thickness || 0.2).toFixed(2)}
-                                                            onChange={(e) => updateObject(selectedId, 'thickness', parseFloat(e.target.value) || 0.2)}
-                                                            className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
-                                                        />
-                                                        <span className="text-[10px] text-gray-600 w-6">m</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-16">张力</label>
-                                                        <input
-                                                            type="range"
-                                                            min="0"
-                                                            max="1"
-                                                            step="0.05"
-                                                            value={selectedObject.tension !== undefined ? selectedObject.tension : 0.5}
-                                                            onChange={(e) => updateObject(selectedId, 'tension', parseFloat(e.target.value))}
-                                                            className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                                        />
-                                                        <span className="text-xs text-gray-400 w-8 text-right">{selectedObject.tension !== undefined ? selectedObject.tension : 0.5}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-16">闭合</label>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedObject.closed || false}
-                                                            onChange={(e) => updateObject(selectedId, 'closed', e.target.checked)}
-                                                            className="accent-blue-500 w-4 h-4"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-                                        {['wall', 'column', 'door'].includes(selectedObject.type) && (
+                                <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
+                                    {selectedObject.type === 'curved_wall' && (
+                                        <>
                                             <div className="space-y-3">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Ruler size={12} className="text-gray-500" />
-                                                    <span className="text-[10px] text-gray-500 font-bold uppercase">尺寸</span>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-16">高度 (H)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={(selectedObject.height || 3).toFixed(2)}
+                                                        onChange={(e) => updateObject(selectedId, 'height', parseFloat(e.target.value) || 3)}
+                                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                                                    />
+                                                    <span className="text-[10px] text-gray-600 w-6">m</span>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">长度 L</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[0].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">高度 H</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[1].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">厚度 W</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[2].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-16">厚度 (W)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={(selectedObject.thickness || 0.2).toFixed(2)}
+                                                        onChange={(e) => updateObject(selectedId, 'thickness', parseFloat(e.target.value) || 0.2)}
+                                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                                                    />
+                                                    <span className="text-[10px] text-gray-600 w-6">m</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-16">张力</label>
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="1"
+                                                        step="0.05"
+                                                        value={selectedObject.tension !== undefined ? selectedObject.tension : 0.5}
+                                                        onChange={(e) => updateObject(selectedId, 'tension', parseFloat(e.target.value))}
+                                                        className="flex-1 h-1 bg-[#333] rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                                    />
+                                                    <span className="text-xs text-gray-400 w-8 text-right">{selectedObject.tension !== undefined ? selectedObject.tension : 0.5}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-16">闭合</label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedObject.closed || false}
+                                                        onChange={(e) => updateObject(selectedId, 'closed', e.target.checked)}
+                                                        className="accent-blue-500 w-4 h-4"
+                                                    />
                                                 </div>
                                             </div>
-                                        )}
-
-                                    </div>
+                                        </>
+                                    )}
+                                    {['wall', 'column', 'door'].includes(selectedObject.type) && (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Ruler size={12} className="text-gray-500" />
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">尺寸</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">长度 L</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[0].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">高度 H</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[1].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">厚度 W</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[2].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {['cnc', 'floor', 'custom_model'].includes(selectedObject.type) && (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Ruler size={12} className="text-gray-500" />
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">尺寸</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">X</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[0].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">Y</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[1].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">Z</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[2].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 </div>
                                 {!isEditingPoints && selectedObject.type !== 'path' && (<><div>
-                                    <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
-                                        {/* 位置 Position - 基础地图不显示 */}
-                                        {!selectedObject.isBaseMap && (
-                                            <div className="space-y-2 mb-4">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Move size={12} className="text-gray-500" />
-                                                    <span className="text-[10px] text-gray-500 font-bold uppercase">位置</span>
+                                <div className="px-4 py-3 space-y-3 bg-[#0e0e0e]">
+                                    {/* 位置 Position - 基础地图不显示 */}
+                                    {!selectedObject.isBaseMap && (
+                                        <div className="space-y-2 mb-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Move size={12} className="text-gray-500" />
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">位置</span>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">位置 X</label>
+                                                    <input
+                                                        type="number"
+                                                        value={selectedObject.position[0].toFixed(2)}
+                                                        onChange={(e) => updateTransform(selectedId, 'position', 0, parseFloat(e.target.value) || 0)}
+                                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                                                    />
                                                 </div>
-                                                <div className="space-y-1.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">位置 X</label>
-                                                        <input
-                                                            type="number"
-                                                            value={selectedObject.position[0].toFixed(2)}
-                                                            onChange={(e) => updateTransform(selectedId, 'position', 0, parseFloat(e.target.value) || 0)}
-                                                            className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">位置 Y</label>
-                                                        <input
-                                                            type="number"
-                                                            value={selectedObject.position[1].toFixed(2)}
-                                                            onChange={(e) => updateTransform(selectedId, 'position', 1, parseFloat(e.target.value) || 0)}
-                                                            className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">位置 Z</label>
-                                                        <input
-                                                            type="number"
-                                                            value={selectedObject.position[2].toFixed(2)}
-                                                            onChange={(e) => updateTransform(selectedId, 'position', 2, parseFloat(e.target.value) || 0)}
-                                                            className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
-                                                        />
-                                                    </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">位置 Y</label>
+                                                    <input
+                                                        type="number"
+                                                        value={selectedObject.position[1].toFixed(2)}
+                                                        onChange={(e) => updateTransform(selectedId, 'position', 1, parseFloat(e.target.value) || 0)}
+                                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">位置 Z</label>
+                                                    <input
+                                                        type="number"
+                                                        value={selectedObject.position[2].toFixed(2)}
+                                                        onChange={(e) => updateTransform(selectedId, 'position', 2, parseFloat(e.target.value) || 0)}
+                                                        className="flex-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                                                    />
                                                 </div>
                                             </div>
-                                        )}
+                                        </div>
+                                    )}
 
-                                        {/* 旋转角度 Rotation - 基础地图不显示 */}
-                                        {!selectedObject.isBaseMap && (
-                                            <div className="space-y-2 mb-4 pt-3 border-t border-[#1a1a1a]">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <RotateCw size={12} className="text-gray-500" />
-                                                    <span className="text-[10px] text-gray-500 font-bold uppercase">旋转角度</span>
+                                    {/* 旋转角度 Rotation - 基础地图不显示 */}
+                                    {!selectedObject.isBaseMap && (
+                                        <div className="space-y-2 mb-4 pt-3 border-t border-[#1a1a1a]">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <RotateCw size={12} className="text-gray-500" />
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">旋转角度</span>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">旋转 X</label>
+                                                    <SmartInput
+                                                        value={parseFloat((selectedObject.rotation[0] * 180 / Math.PI).toFixed(1))}
+                                                        onChange={(val) => updateTransform(selectedId, 'rotation', 0, val * Math.PI / 180)}
+                                                        suffix="°"
+                                                        step={1}
+                                                    />
                                                 </div>
-                                                <div className="space-y-1.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">旋转 X</label>
-                                                        <SmartInput
-                                                            value={parseFloat((selectedObject.rotation[0] * 180 / Math.PI).toFixed(1))}
-                                                            onChange={(val) => updateTransform(selectedId, 'rotation', 0, val * Math.PI / 180)}
-                                                            suffix="°"
-                                                            step={1}
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">旋转 Y</label>
-                                                        <SmartInput
-                                                            value={parseFloat((selectedObject.rotation[1] * 180 / Math.PI).toFixed(1))}
-                                                            onChange={(val) => updateTransform(selectedId, 'rotation', 1, val * Math.PI / 180)}
-                                                            suffix="°"
-                                                            step={1}
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-[11px] text-gray-400 w-12">旋转 Z</label>
-                                                        <SmartInput
-                                                            value={parseFloat((selectedObject.rotation[2] * 180 / Math.PI).toFixed(1))}
-                                                            onChange={(val) => updateTransform(selectedId, 'rotation', 2, val * Math.PI / 180)}
-                                                            suffix="°"
-                                                            step={1}
-                                                        />
-                                                    </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">旋转 Y</label>
+                                                    <SmartInput
+                                                        value={parseFloat((selectedObject.rotation[1] * 180 / Math.PI).toFixed(1))}
+                                                        onChange={(val) => updateTransform(selectedId, 'rotation', 1, val * Math.PI / 180)}
+                                                        suffix="°"
+                                                        step={1}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">旋转 Z</label>
+                                                    <SmartInput
+                                                        value={parseFloat((selectedObject.rotation[2] * 180 / Math.PI).toFixed(1))}
+                                                        onChange={(val) => updateTransform(selectedId, 'rotation', 2, val * Math.PI / 180)}
+                                                        suffix="°"
+                                                        step={1}
+                                                    />
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
+
+                                    {/* 缩放 Scale - 点不显示 */}
+                                    {selectedObject.type !== 'point' && (
+                                        <div className="space-y-2 pt-3 border-t border-[#1a1a1a]">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Maximize size={12} className="text-gray-500" />
+                                                <span className="text-[10px] text-gray-500 font-bold uppercase">缩放</span>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">X</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[0].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">Y</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[1].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[11px] text-gray-400 w-12">Z</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[2].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 </div></>)}
                                 {/* 外观材质 - 仅对非自定义模型对象显示 */}
                                 {!['cnc', 'custom_model'].includes(selectedObject.type) && !selectedObject.modelUrl && (
@@ -8214,7 +8213,7 @@ const App = () => {
                                         const obj = objects.find(o => o.id === id);
                                         return obj && replaceableTypes.includes(obj.type);
                                     }).length;
-
+                                    
                                     // 调试信息
                                     if (selectedIds.length > 0) {
                                         const selectedTypes = selectedIds.map(id => {
@@ -8228,43 +8227,43 @@ const App = () => {
                                             customAssetsCount: customAssets.length
                                         });
                                     }
-
+                                    
                                     return replaceableCount > 0 && (
                                         <PropSection title={`批量替换模型 (${replaceableCount} 个对象)`}>
-                                            <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a]">
-                                                <div className="text-[10px] text-gray-500 mb-3 text-left">基础模型:</div>
-                                                <div className="grid grid-cols-2 gap-2 mb-3">
-                                                    <button onClick={() => batchReplaceWaypointModels('cnc')} className="flex flex-col items-center gap-1 p-2 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400">
-                                                        <Server size={14} />
-                                                        <span className="text-[9px]">CNC</span>
-                                                    </button>
-                                                    <button onClick={() => batchReplaceWaypointModels('cube')} className="flex flex-col items-center gap-1 p-2 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400">
-                                                        <Box size={14} />
-                                                        <span className="text-[9px]">占位方块</span>
-                                                    </button>
-                                                </div>
-                                                {customAssets.length > 0 ? (
-                                                    <>
-                                                        <div className="text-[10px] text-gray-500 mb-2">自定义资产: ({customAssets.length})</div>
-                                                        <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto custom-scrollbar">
-                                                            {customAssets.map((asset, idx) => (
-                                                                <button
-                                                                    key={idx}
-                                                                    onClick={() => batchReplaceWaypointModels('custom_model', asset)}
-                                                                    className="flex flex-col items-center gap-1 p-2 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
-                                                                    title={asset.label}
-                                                                >
-                                                                    <Box size={12} />
-                                                                    <span className="text-[8px] truncate w-full text-center">{asset.label}</span>
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="text-[10px] text-gray-600 py-2 text-center">暂无自定义资产</div>
-                                                )}
+                                        <div className="bg-[#161616] p-3 rounded-lg border border-[#2a2a2a]">
+                                            <div className="text-[10px] text-gray-500 mb-3 text-left">基础模型:</div>
+                                            <div className="grid grid-cols-2 gap-2 mb-3">
+                                                <button onClick={() => batchReplaceWaypointModels('cnc')} className="flex flex-col items-center gap-1 p-2 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400">
+                                                    <Server size={14} />
+                                                    <span className="text-[9px]">CNC</span>
+                                                </button>
+                                                <button onClick={() => batchReplaceWaypointModels('cube')} className="flex flex-col items-center gap-1 p-2 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400">
+                                                    <Box size={14} />
+                                                    <span className="text-[9px]">占位方块</span>
+                                                </button>
                                             </div>
-                                        </PropSection>
+                                            {customAssets.length > 0 ? (
+                                                <>
+                                                    <div className="text-[10px] text-gray-500 mb-2">自定义资产: ({customAssets.length})</div>
+                                                    <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                                        {customAssets.map((asset, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                onClick={() => batchReplaceWaypointModels('custom_model', asset)}
+                                                                className="flex flex-col items-center gap-1 p-2 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#252525] hover:border-blue-500 transition-all text-gray-400 hover:text-blue-400"
+                                                                title={asset.label}
+                                                            >
+                                                                <Box size={12} />
+                                                                <span className="text-[8px] truncate w-full text-center">{asset.label}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-[10px] text-gray-600 py-2 text-center">暂无自定义资产</div>
+                                            )}
+                                        </div>
+                                    </PropSection>
                                     );
                                 })()}
 
