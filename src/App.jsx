@@ -7832,42 +7832,48 @@ const App = () => {
                                                 </div>
                                             )}
 
-                                            {/* 缩放控件 - 放在模型缩放下面 */}
-                                            <div className="mt-3">
-                                                <div className="text-[11px] text-gray-500 mb-2">缩放</div>
-                                                <div className="flex gap-2">
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">长</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[0].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">宽</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[2].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] text-gray-500 block mb-1">高</label>
-                                                        <SmartInput
-                                                            value={parseFloat(selectedObject.scale[1].toFixed(2))}
-                                                            onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
-                                                            min={0.01}
-                                                            className=""
-                                                        />
-                                                    </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 缩放控件 - 对所有对象类型都可用 */}
+                                {selectedObject && selectedObject.scale && (
+                                    <div className="border-b border-[#1a1a1a]">
+                                        <div className="px-4 py-3 bg-[#0e0e0e]">
+                                            <div className="text-[11px] text-gray-500 mb-2">缩放</div>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">长</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[0].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 0, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">宽</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[2].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 2, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] text-gray-500 block mb-1">高</label>
+                                                    <SmartInput
+                                                        value={parseFloat(selectedObject.scale[1].toFixed(2))}
+                                                        onChange={(val) => updateTransform(selectedId, 'scale', 1, val)}
+                                                        min={0.01}
+                                                        className=""
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 )}
+
 
                                 {['waypoint', 'cube', 'cnc', 'column', 'door', 'custom_model'].includes(selectedObject.type) && (
                                     <div className="border-b border-[#1a1a1a]">
