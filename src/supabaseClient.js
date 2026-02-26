@@ -17,12 +17,12 @@ export async function getScenes() {
         .from('scenes')
         .select('*')
         .order('created_at', { ascending: false });
-    
+
     if (error) {
         console.error('❌ 获取场景失败:', error);
         return [];
     }
-    
+
     return data;
 }
 
@@ -35,12 +35,12 @@ export async function createScene(name) {
         .insert([{ name }])
         .select()
         .single();
-    
+
     if (error) {
         console.error('❌ 创建场景失败:', error);
         return null;
     }
-    
+
     console.log('✅ 场景创建成功:', data);
     return data;
 }
@@ -54,12 +54,12 @@ export async function getFloorLevels(sceneId) {
         .select('*')
         .eq('scene_id', sceneId)
         .order('level', { ascending: true });
-    
+
     if (error) {
         console.error('❌ 获取楼层失败:', error);
         return [];
     }
-    
+
     return data;
 }
 
@@ -72,12 +72,12 @@ export async function createFloorLevel(sceneId, name, level) {
         .insert([{ scene_id: sceneId, name, level }])
         .select()
         .single();
-    
+
     if (error) {
         console.error('❌ 创建楼层失败:', error);
         return null;
     }
-    
+
     console.log('✅ 楼层创建成功:', data);
     return data;
 }
@@ -91,7 +91,7 @@ export async function getBaseMap(floorId) {
         .select('*')
         .eq('floor_id', floorId)
         .single();
-    
+
     if (error) {
         if (error.code === 'PGRST116') {
             // 没有找到数据
@@ -100,7 +100,7 @@ export async function getBaseMap(floorId) {
         console.error('❌ 获取底图失败:', error);
         return null;
     }
-    
+
     return data;
 }
 
@@ -110,7 +110,7 @@ export async function getBaseMap(floorId) {
 export async function saveBaseMap(floorId, baseMapData) {
     // 先检查是否已存在
     const existing = await getBaseMap(floorId);
-    
+
     const mapData = {
         floor_id: floorId,
         image_url: baseMapData.imageUrl,
@@ -120,7 +120,7 @@ export async function saveBaseMap(floorId, baseMapData) {
         width: baseMapData.actualSize.width,
         height: baseMapData.actualSize.height
     };
-    
+
     if (existing) {
         // 更新
         const { data, error } = await supabase
@@ -129,12 +129,12 @@ export async function saveBaseMap(floorId, baseMapData) {
             .eq('id', existing.id)
             .select()
             .single();
-        
+
         if (error) {
             console.error('❌ 更新底图失败:', error);
             return null;
         }
-        
+
         console.log('✅ 底图更新成功:', data);
         return data;
     } else {
@@ -144,12 +144,12 @@ export async function saveBaseMap(floorId, baseMapData) {
             .insert([mapData])
             .select()
             .single();
-        
+
         if (error) {
             console.error('❌ 保存底图失败:', error);
             return null;
         }
-        
+
         console.log('✅ 底图保存成功:', data);
         return data;
     }
@@ -164,7 +164,7 @@ export async function getGLBModel(floorId) {
         .select('*')
         .eq('floor_id', floorId)
         .single();
-    
+
     if (error) {
         if (error.code === 'PGRST116') {
             return null;
@@ -172,7 +172,7 @@ export async function getGLBModel(floorId) {
         console.error('❌ 获取GLB模型失败:', error);
         return null;
     }
-    
+
     return data;
 }
 
@@ -181,7 +181,7 @@ export async function getGLBModel(floorId) {
  */
 export async function saveGLBModel(floorId, modelData) {
     const existing = await getGLBModel(floorId);
-    
+
     const glbData = {
         floor_id: floorId,
         file_name: modelData.fileName,
@@ -197,7 +197,7 @@ export async function saveGLBModel(floorId, modelData) {
         rotation_z: 0,
         locked: true
     };
-    
+
     if (existing) {
         const { data, error } = await supabase
             .from('glb_models')
@@ -205,12 +205,12 @@ export async function saveGLBModel(floorId, modelData) {
             .eq('id', existing.id)
             .select()
             .single();
-        
+
         if (error) {
             console.error('❌ 更新GLB模型失败:', error);
             return null;
         }
-        
+
         console.log('✅ GLB模型更新成功:', data);
         return data;
     } else {
@@ -219,12 +219,12 @@ export async function saveGLBModel(floorId, modelData) {
             .insert([glbData])
             .select()
             .single();
-        
+
         if (error) {
             console.error('❌ 保存GLB模型失败:', error);
             return null;
         }
-        
+
         console.log('✅ GLB模型保存成功:', data);
         return data;
     }
@@ -238,12 +238,12 @@ export async function deleteGLBModel(floorId) {
         .from('glb_models')
         .delete()
         .eq('floor_id', floorId);
-    
+
     if (error) {
         console.error('❌ 删除GLB模型失败:', error);
         return false;
     }
-    
+
     console.log('✅ GLB模型删除成功');
     return true;
 }
@@ -256,12 +256,12 @@ export async function getSceneObjects(floorId) {
         .from('scene_objects')
         .select('*')
         .eq('floor_id', floorId);
-    
+
     if (error) {
         console.error('❌ 获取场景对象失败:', error);
         return [];
     }
-    
+
     return data;
 }
 
@@ -274,7 +274,7 @@ export async function saveSceneObjects(floorId, objects) {
         .from('scene_objects')
         .delete()
         .eq('floor_id', floorId);
-    
+
     // 转换对象格式
     const objectsData = objects.map(obj => ({
         floor_id: floorId,
@@ -303,18 +303,168 @@ export async function saveSceneObjects(floorId, objects) {
             closed: obj.closed || null
         }
     }));
-    
+
     // 批量插入
     const { data, error } = await supabase
         .from('scene_objects')
         .insert(objectsData)
         .select();
-    
+
     if (error) {
         console.error('❌ 保存场景对象失败:', error);
         return [];
     }
-    
+
     console.log(`✅ 成功保存 ${data.length} 个场景对象`);
     return data;
+}
+
+// --- Custom Assets Functions ---
+
+/**
+ * 上传资产文件到 Storage
+ * @param {File} file - 文件对象
+ * @returns {Promise<string|null>} - 返回公开访问 URL
+ */
+export async function uploadAssetFile(file) {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { data, error } = await supabase.storage
+        .from('models')
+        .upload(filePath, file);
+
+    if (error) {
+        console.error('❌ 上传文件失败:', error);
+        return null;
+    }
+
+    // 获取公开 URL
+    const { data: { publicUrl } } = supabase.storage
+        .from('models')
+        .getPublicUrl(filePath);
+
+    return publicUrl;
+}
+
+/**
+ * 添加自定义资产记录
+ */
+export async function addCustomAsset(asset) {
+    const { data, error } = await supabase
+        .from('custom_assets')
+        .insert([{
+            label: asset.label,
+            model_url: asset.modelUrl,
+            icon_url: asset.iconUrl, // 可选
+            model_scale: asset.modelScale || 1,
+            auto_fit_to_slam: asset.autoFitToSLAM !== false,
+            json_data: asset.jsonData || '{}',
+            scale_unit: 'm' // 默认为米
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ 添加自定义资产记录失败:', error);
+        throw error;
+    }
+
+    return data;
+}
+
+/**
+ * 获取所有自定义资产
+ */
+export async function getCustomAssets() {
+    const { data, error } = await supabase
+        .from('custom_assets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('❌ 获取自定义资产失败:', error);
+        return [];
+    }
+
+    // 转换为前端使用的格式
+    return data.map(record => ({
+        id: record.id,
+        label: record.label,
+        modelUrl: record.model_url,
+        iconUrl: record.icon_url,
+        category: '自定义',
+        type: 'custom_model',
+        modelScale: record.model_scale,
+        autoFitToSLAM: record.auto_fit_to_slam,
+        jsonData: record.json_data
+    }));
+}
+
+/**
+ * 更新自定义资产
+ */
+export async function updateCustomAsset(id, updates) {
+    const { data, error } = await supabase
+        .from('custom_assets')
+        .update({
+            label: updates.label,
+            model_scale: updates.modelScale,
+            auto_fit_to_slam: updates.autoFitToSLAM,
+            json_data: updates.jsonData,
+            // model_url: updates.modelUrl // 通常不更新模型文件，若需支持替换模型需另行处理
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ 更新自定义资产失败:', error);
+        throw error;
+    }
+
+    return data;
+}
+
+/**
+ * 删除自定义资产
+ */
+export async function deleteCustomAsset(id, modelUrl) {
+    // 1. 删除数据库记录
+    const { error: dbError } = await supabase
+        .from('custom_assets')
+        .delete()
+        .eq('id', id);
+
+    if (dbError) {
+        console.error('❌ 删除资产记录失败:', dbError);
+        return false;
+    }
+
+    // 2. 尝试删除 Storage 文件 (可选，失败不影响记录删除)
+    if (modelUrl) {
+        try {
+            // 从 URL 提取文件名
+            // 假设 URL 格式: .../storage/v1/object/public/models/filename.glb
+            const urlParts = modelUrl.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+
+            if (fileName) {
+                const { error: storageError } = await supabase.storage
+                    .from('models')
+                    .remove([fileName]);
+
+                if (storageError) {
+                    console.warn('⚠️ 删除资产文件失败 (可能是权限问题):', storageError);
+                } else {
+                    console.log('✅ 资产文件已清理');
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ 解析文件路径失败:', e);
+        }
+    }
+
+    return true;
 }

@@ -2,6 +2,7 @@ import React, { useRef, useState, Suspense } from 'react';
 import { useCursor, Html, TransformControls, Edges, Gltf } from '@react-three/drei';
 import { BrickWall, Box as BoxIcon, LandPlot, DoorOpen, Columns, Server } from 'lucide-react';
 import { ContinuousCurveMesh, PolygonFloorMesh, CurveEditor } from './DrawingComponents';
+import AutoScaledGltf from './AutoScaledGltf';
 
 const SceneObject = ({
     data,
@@ -11,8 +12,18 @@ const SceneObject = ({
     transformMode,
     onTransformEnd,
     onToggleEdit,
-    onUpdatePoints // 新增：用于更新点位
+    onUpdatePoints, // 新增：用于更新点位
+    slamMapWidth,   // SLAM 底图宽度（米）
+    slamMapHeight   // SLAM 底图高度（米）
 }) => {
+    // 🔍 调试 SceneObject props
+    if (data.modelUrl) {
+        console.log(`🔍 [SceneObject] ${data.name} (id:${data.id})`);
+        console.log(`   - slamMap: ${slamMapWidth} x ${slamMapHeight}`);
+        console.log(`   - autoFitToSLAM: ${data.autoFitToSLAM}`);
+        console.log(`   - modelUrl: ${data.modelUrl?.substring(0, 30)}...`);
+    }
+
     const groupRef = useRef();
     const [hovered, setHovered] = useState(false);
 
@@ -175,12 +186,24 @@ const SceneObject = ({
                                 <meshBasicMaterial color="gray" wireframe />
                             </mesh>
                         }>
-                            <Gltf
-                                src={data.modelUrl}
-                                castShadow
-                                receiveShadow
-                                scale={data.modelScale || 1}
-                            />
+                            {/* 如果有 SLAM 尺寸且数据要求自动适配，则使用自动缩放组件 */}
+                            {(slamMapWidth && slamMapHeight && data.autoFitToSLAM) ? (
+                                <AutoScaledGltf
+                                    src={data.modelUrl}
+                                    targetWidth={slamMapWidth}
+                                    targetHeight={slamMapHeight}
+                                    autoScale={true}
+                                    castShadow
+                                    receiveShadow
+                                />
+                            ) : (
+                                <Gltf
+                                    src={data.modelUrl}
+                                    castShadow
+                                    receiveShadow
+                                    scale={data.modelScale || 1}
+                                />
+                            )}
                             {(isSelected || hovered) && (
                                 <mesh>
                                     <boxGeometry args={[1.05, 1.05, 1.05]} />
