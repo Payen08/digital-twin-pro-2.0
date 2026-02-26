@@ -4136,9 +4136,7 @@ const App = () => {
                 currentFloorId,
                 currentFloorLevelId,
                 objects: objectsToSave,
-                objects: objectsToSave,
                 // customAssets: customAssets, // ❌ 不再保存到 localStorage，改为 Supabase 存储
-                lightingConfig, // 🔑 保存灯光配置
                 lightingConfig, // 🔑 保存灯光配置
                 timestamp: new Date().toISOString()
             };
