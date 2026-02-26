@@ -7362,7 +7362,7 @@ const App = () => {
                                                 name: '1F',
                                                 height: 0,
                                                 visible: true,
-                                                objects: objects, // 保留当前场景的对象
+                                                objects: [], // 新场景始终从空白开始
                                                 baseMapData: null,
                                                 baseMapId: null,
                                                 waypointsData: null,
@@ -7381,39 +7381,8 @@ const App = () => {
                                             floorLevels
                                         };
 
-                                        // 检查是否需要显示冲突确认对话框
-                                        const hasOnlyDefaultScene = floors.length === 1 && floors[0].isDefault;
-                                        const defaultSceneHasContent = objects.some(obj =>
-                                            !obj.isBaseMap &&
-                                            obj.type !== 'waypoint' &&
-                                            obj.type !== 'path_line' &&
-                                            !obj.sourceRefId
-                                        );
-
-                                        if (hasOnlyDefaultScene && defaultSceneHasContent) {
-                                            // 默认场景有内容，显示确认对话框
-                                            console.log('⚠️ 默认场景有内容，显示确认对话框');
-                                            setPendingNewSceneData({
-                                                newFloor,
-                                                finalObjects: [],
-                                                newEntities: [],
-                                                newPaths: [],
-                                                baseMap: null,
-                                                sceneModelObj: null
-                                            });
-                                            setShowOverwriteConfirmDialog(true);
-                                            setEditingFloor(null);
-                                            return;
-                                        }
-
-                                        // 直接添加场景（没有冲突）
-                                        if (hasOnlyDefaultScene) {
-                                            // 替换默认场景
-                                            setFloors([newFloor]);
-                                        } else {
-                                            // 添加到现有场景列表
-                                            setFloors([...floors, newFloor]);
-                                        }
+                                        // 🔑 新场景始终添加到场景列表，不替换默认场景
+                                        setFloors([...floors, newFloor]);
 
                                         // 切换到新场景
                                         setCurrentFloorId(newFloor.id);
@@ -7789,120 +7758,6 @@ const App = () => {
                 </div>
             )}
 
-            {/* 默认场景覆盖确认对话框 */}
-            {showOverwriteConfirmDialog && pendingNewSceneData && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
-                    <div className="bg-[#161616] w-[500px] rounded-xl border border-[#333] shadow-2xl flex flex-col overflow-hidden">
-                        {/* 标题栏 */}
-                        <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a] bg-[#1a1a1a]">
-                            <h3 className="text-sm font-bold text-white">新建场景确认</h3>
-                            <button onClick={() => setShowOverwriteConfirmDialog(false)} className="text-gray-400 hover:text-white transition-colors">
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {/* 内容区域 */}
-                        <div className="p-6 space-y-4">
-                            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex gap-3">
-                                <AlertTriangle className="text-yellow-500 shrink-0" size={20} />
-                                <div>
-                                    <p className="text-sm font-bold text-yellow-200 mb-1">当前默认场景已有内容</p>
-                                    <p className="text-xs text-gray-400">您正在创建一个新场景，但默认场景中已经存在编辑过的内容（墙体、柱子等装饰物）。</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="flex items-center gap-3 p-3 rounded-lg border border-[#333] bg-[#1a1a1a] hover:border-gray-600 cursor-pointer transition-colors">
-                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${overwriteDefaultScene ? 'bg-blue-600 border-blue-600' : 'border-gray-500'}`}>
-                                        {overwriteDefaultScene && <Check size={14} className="text-white" />}
-                                    </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={overwriteDefaultScene}
-                                        onChange={(e) => setOverwriteDefaultScene(e.target.checked)}
-                                        className="hidden"
-                                    />
-                                    <div className="flex-1">
-                                        <span className="text-sm font-medium text-gray-200">替换默认场景（丢弃装饰物）</span>
-                                        <p className="text-xs text-gray-500 mt-0.5">选中：丢弃默认场景的所有内容，只保留新场景<br />不选中：新场景将继承默认场景的装饰物（推荐）</p>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* 底部操作栏 */}
-                        <div className="p-4 border-t border-[#2a2a2a] flex gap-3 justify-end bg-[#1a1a1a]">
-                            <button
-                                onClick={() => setShowOverwriteConfirmDialog(false)}
-                                className="px-4 py-2 bg-[#222] text-gray-300 rounded hover:bg-[#333] text-xs"
-                            >
-                                取消
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const { newFloor, finalObjects, newEntities, newPaths, baseMap, sceneModelObj } = pendingNewSceneData;
-
-                                    if (overwriteDefaultScene) {
-                                        // 替换逻辑：直接用新场景替换默认场景
-                                        console.log('🔄 替换模式：用新场景替换默认场景');
-                                        setFloors([newFloor]);
-
-                                        // 切换到新场景
-                                        setCurrentFloorId(newFloor.id);
-                                        setObjects(finalObjects);
-                                        setHistory([finalObjects]);
-                                        setHistoryIndex(0);
-                                    } else {
-                                        // 合并逻辑：新场景继承默认场景的装饰物，然后删除默认场景
-                                        console.log('📝 合并模式：新场景将继承默认场景的装饰物');
-
-                                        // 1. 从当前对象中提取装饰物（非路网、非底图的元素）
-                                        const decorativeObjects = objects.filter(obj =>
-                                            !obj.isBaseMap && // 不是底图
-                                            obj.type !== 'waypoint' && // 不是路网点位
-                                            obj.type !== 'path_line' && // 不是路径
-                                            !obj.sourceRefId // 不是绑定到路网的对象
-                                        );
-
-                                        console.log('🎨 提取的装饰物:', decorativeObjects.length, '个');
-                                        console.log('📋 装饰物列表:', decorativeObjects.map(o => ({ type: o.type, name: o.name })));
-
-                                        // 2. 合并：新场景的对象 + 继承的装饰物
-                                        const mergedObjects = [...finalObjects, ...decorativeObjects];
-
-                                        // 3. 更新新场景的对象列表
-                                        const newFloorWithDecorations = {
-                                            ...newFloor,
-                                            objects: mergedObjects
-                                        };
-
-                                        // 4. 删除默认场景，只保留新场景
-                                        console.log('🗑️ 删除默认场景，只保留新场景');
-                                        const nonDefaultFloors = floors.filter(f => !f.isDefault);
-                                        setFloors([...nonDefaultFloors, newFloorWithDecorations]);
-
-                                        // 5. 切换到新场景
-                                        setCurrentFloorId(newFloorWithDecorations.id);
-                                        setObjects(mergedObjects);
-                                        setHistory([mergedObjects]);
-                                        setHistoryIndex(0);
-                                    }
-
-                                    // 关闭弹窗
-                                    setShowOverwriteConfirmDialog(false);
-                                    setEditingFloor(null);
-                                    setShowFloorManager(false);
-
-                                    alert(`✅ 场景创建成功\n\n地图: ${baseMap.name}\n点位: ${newEntities.length} 个\n路径: ${newPaths.length} 条${sceneModelObj ? '\n3D模型: 已自动对齐' : ''}`);
-                                }}
-                                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-bold"
-                            >
-                                确定
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* 退出确认对话框 */}
             {showExitConfirmDialog && (
