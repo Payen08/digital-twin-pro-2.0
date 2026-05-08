@@ -1782,8 +1782,56 @@ const AutoScaleGltf = ({ src, data, baseMapData, onScaleCalculated }) => {
     return <primitive object={model} />;
 };
 
+// 辅助函数：从不同格式的 baseMapData 中提取底图尺寸（米）
+// 支持三种格式：
+// 1. JSON上传: { actualSize: {width, height}, resolution: 1, origin }
+// 2. parseFullMapJson: { scale: [w,1,h], mapMetadata: { width, height, resolution } }
+// 3. PNG上传: { width, height, actualWidth, actualHeight }
+const getMapDimensionsInMeters = (baseMapData) => {
+    if (!baseMapData) return null;
+
+    // 格式1: actualSize + resolution (JSON文件上传)
+    if (baseMapData.actualSize && baseMapData.resolution) {
+        return {
+            width: baseMapData.actualSize.width * baseMapData.resolution,
+            height: baseMapData.actualSize.height * baseMapData.resolution
+        };
+    }
+
+    // 格式2: mapMetadata (parseFullMapJson 返回的 baseMap 对象)
+    if (baseMapData.mapMetadata?.width && baseMapData.mapMetadata?.height && baseMapData.mapMetadata?.resolution) {
+        return {
+            width: baseMapData.mapMetadata.width * baseMapData.mapMetadata.resolution,
+            height: baseMapData.mapMetadata.height * baseMapData.mapMetadata.resolution
+        };
+    }
+
+    // 格式2备选: 直接从 scale 获取（已是米为单位）
+    if (baseMapData.scale && Array.isArray(baseMapData.scale) && baseMapData.scale.length >= 3) {
+        const w = baseMapData.scale[0];
+        const h = baseMapData.scale[2];
+        if (w > 0.1 && h > 0.1) { // 合理范围检查
+            return { width: w, height: h };
+        }
+    }
+
+    // 格式3: actualWidth + actualHeight (PNG上传)
+    if (baseMapData.actualWidth && baseMapData.actualHeight) {
+        return {
+            width: baseMapData.actualWidth,
+            height: baseMapData.actualHeight
+        };
+    }
+
+    // 格式3备选: width + height (像素) + 推断分辨率
+    // 不在这里处理，因为需要用户输入分辨率
+
+    console.warn('⚠️ 无法从 baseMapData 中提取底图尺寸:', Object.keys(baseMapData));
+    return null;
+};
+
 // 场景对象
-const SceneObject = ({ data, baseMapData, isSelected, isEditingPoints, onSelect, transformMode, onTransformEnd, onUpdatePoints, onToggleEdit, cameraView, enableSnap, dimmed }) => {
+const SceneObject = ({ data, baseMapData, isSelected, isEditingPoints, onSelect, transformMode, onTransformEnd, onUpdatePoints, onToggleEdit, cameraView, enableSnap, dimmed, slamMapWidth: propSlamWidth, slamMapHeight: propSlamHeight }) => {
     const groupRef = useRef();
     const [hovered, setHovered] = useState(false);
 
@@ -1799,24 +1847,30 @@ const SceneObject = ({ data, baseMapData, isSelected, isEditingPoints, onSelect,
         });
     }
 
-    // 计算 SLAM 底图尺寸
-    let slamMapWidth = null;
-    let slamMapHeight = null;
+    // 计算 SLAM 底图尺寸（优先使用传入的 props，否则从 baseMapData 计算）
     const shouldAutoFit = data.autoFitToSLAM !== false;
-    if (baseMapData?.resolution && baseMapData?.actualSize) {
-        slamMapWidth = baseMapData.actualSize.width * baseMapData.resolution;
-        slamMapHeight = baseMapData.actualSize.height * baseMapData.resolution;
+    let slamMapWidth = propSlamWidth || null;
+    let slamMapHeight = propSlamHeight || null;
 
-        // 调试日志
-        if (shouldAutoFit && data.modelUrl) {
-            console.log(`🔍 [SceneObject Internal] AutoFit Ready:`, {
-                id: data.id,
-                name: data.name,
-                slamWidth: slamMapWidth.toFixed(2),
-                slamHeight: slamMapHeight.toFixed(2),
-                autoFit: shouldAutoFit
-            });
+    // 如果 props 没有提供尺寸，尝试从 baseMapData 计算
+    if ((!slamMapWidth || !slamMapHeight) && baseMapData) {
+        const dims = getMapDimensionsInMeters(baseMapData);
+        if (dims) {
+            slamMapWidth = dims.width;
+            slamMapHeight = dims.height;
         }
+    }
+
+    // 调试日志
+    if (shouldAutoFit && data.modelUrl) {
+        console.log(`🔍 [SceneObject Internal] AutoFit Ready:`, {
+            id: data.id,
+            name: data.name,
+            slamWidth: slamMapWidth?.toFixed?.(2) || 'null',
+            slamHeight: slamMapHeight?.toFixed?.(2) || 'null',
+            autoFit: shouldAutoFit,
+            hasBaseMapData: !!baseMapData
+        });
     }
 
     useEffect(() => {
@@ -9301,13 +9355,16 @@ const App = () => {
                                         activeFloorNameForDim = selectedObj?._floorLevelName || null;
                                     }
 
-                                    // 计算 SLAM 底图尺寸
+                                    // 计算 SLAM 底图尺寸（使用统一的辅助函数）
                                     let slamMapWidth = null;
                                     let slamMapHeight = null;
                                     const baseMapData = currentFloorLevel?.baseMapData;
-                                    if (baseMapData?.resolution && baseMapData?.actualSize) {
-                                        slamMapWidth = baseMapData.actualSize.width * baseMapData.resolution;
-                                        slamMapHeight = baseMapData.actualSize.height * baseMapData.resolution;
+                                    if (baseMapData) {
+                                        const dims = getMapDimensionsInMeters(baseMapData);
+                                        if (dims) {
+                                            slamMapWidth = dims.width;
+                                            slamMapHeight = dims.height;
+                                        }
                                     }
 
                                     // 🔍 调试：每隔几秒打印一次，避免刷屏
