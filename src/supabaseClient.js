@@ -468,3 +468,122 @@ export async function deleteCustomAsset(id, modelUrl) {
 
     return true;
 }
+
+// ==========================================
+// 工作区分享（编辑器ID功能）
+// ==========================================
+
+/**
+ * 保存场景到分享工作区
+ */
+export async function saveSharedScene(shareId, sceneData, sceneName = '未命名') {
+    const { data, error } = await supabase
+        .from('shared_scenes')
+        .upsert({
+            share_id: shareId,
+            scene_data: sceneData,
+            scene_name: sceneName,
+            updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('❌ 保存分享场景失败:', error);
+        return null;
+    }
+    console.log('✅ 场景已保存到工作区:', shareId);
+    return data;
+}
+
+/**
+ * 获取分享工作区的场景数据
+ */
+export async function getSharedScene(shareId) {
+    const { data, error } = await supabase
+        .from('shared_scenes')
+        .select('*')
+        .eq('share_id', shareId)
+        .single();
+
+    if (error) {
+        if (error.code === 'PGRST116') {
+            console.log('📭 工作区不存在:', shareId);
+            return null;
+        }
+        console.error('❌ 获取分享场景失败:', error);
+        return null;
+    }
+    console.log('📥 加载工作区场景:', shareId, data.scene_name);
+    return data;
+}
+
+/**
+ * 保存/更新项目
+ */
+export async function saveProject(workspaceId, projectName, sceneData, projectId = null) {
+    const id = projectId || 'proj-' + Math.random().toString(36).slice(2, 10);
+    const { data, error } = await supabase
+        .from('projects')
+        .upsert({
+            id,
+            workspace_id: workspaceId,
+            project_name: projectName || '未命名方案',
+            scene_data: sceneData,
+            updated_at: new Date().toISOString()
+        })
+        .select().single();
+    if (error) { console.error('❌ 保存项目失败:', error); return null; }
+    return data;
+}
+
+/**
+ * 获取工作区的所有项目列表
+ */
+export async function listProjects(workspaceId) {
+    const { data, error } = await supabase
+        .from('projects')
+        .select('id, workspace_id, project_name, updated_at')
+        .eq('workspace_id', workspaceId)
+        .order('updated_at', { ascending: false });
+    if (error) { console.error('❌ 获取项目列表失败:', error); return []; }
+    return data || [];
+}
+
+/**
+ * 获取所有项目列表
+ */
+export async function listAllProjects() {
+    const { data, error } = await supabase
+        .from('projects')
+        .select('id, workspace_id, project_name, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(100);
+    if (error) { console.error('❌ 获取项目列表失败:', error); return []; }
+    return data || [];
+}
+
+/**
+ * 获取单个项目
+ */
+export async function getProject(projectId) {
+    const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+    if (error) { console.error('❌ 获取项目失败:', error); return null; }
+    return data;
+}
+
+/**
+ * 删除项目
+ */
+export async function deleteProject(projectId) {
+    const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+    if (error) { console.error('❌ 删除项目失败:', error); return false; }
+    return true;
+}

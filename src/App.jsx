@@ -16,7 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Import Supabase
 // Import Supabase
-import { supabase, saveBaseMap, saveGLBModel, deleteGLBModel, getBaseMap, getGLBModel, saveSceneObjects, getSceneObjects } from './supabaseClient'; // remove asset functions
+import { supabase, saveBaseMap, saveGLBModel, deleteGLBModel, getBaseMap, getGLBModel, saveSceneObjects, getSceneObjects, saveSharedScene, getSharedScene, saveProject, getProject, listProjects } from './supabaseClient'; // remove asset functions
 import { saveCustomAssetToDB, getCustomAssetsFromDB, deleteCustomAssetFromDB, updateCustomAssetInDB } from './utils/indexedDB';
 
 // Import utilities
@@ -34,6 +34,7 @@ import { parseFullMapJson, checkSpatialConflicts, smartMergeEntities, isSceneCle
 // Import batch operations
 import BoxSelection from './components/BoxSelection';
 import BatchOperations from './components/BatchOperations';
+import HomePage from './components/HomePage';
 import { useBatchOperations } from './hooks/useBatchOperations';
 import './styles/BatchOperations.css';
 
@@ -3011,8 +3012,8 @@ const App = () => {
 
     const [sidebarTab, setSidebarTab] = useState('assets');
     const [searchQuery, setSearchQuery] = useState('');
-    const [isPreviewMode, setIsPreviewMode] = useState(false); // 预览模式状态（已禁用）
-    const isPreviewModeDisabled = true; // 强制禁用预览模式
+    const [isPreviewMode, setIsPreviewMode] = useState(false); // 全局预览模式
+    const [autoRotate, setAutoRotate] = useState(true); // 预览模式自动旋转
     const [isCameraDragging, setIsCameraDragging] = useState(false); // 用于判断相机是否正在拖动
     const [cameraZoom, setCameraZoom] = useState({
         orthographic: 5,  // 2D和俯视图/正视图的缩放
@@ -3092,7 +3093,47 @@ const App = () => {
         cnc: { modelScale: 1, scale: [1, 1, 1] }
     });
 
-    // 场景管理状态
+    // 🔄 场景导出相关状态
+    const [showExportPanel, setShowExportPanel] = useState(false);
+    const [exportOptions, setExportOptions] = useState({
+        roadNetwork: true,      // 路网（路径+点位）
+        waypoints: true,         // 地图点位
+        models3D: true,          // 3D模型文件引用
+        baseMap: true,           // SLAM底图
+        buildingObjects: true,   // 建筑物体（墙、门、柱等）
+        prettyPrint: true        // 格式化JSON
+    });
+
+    // ☁️ 云端同步状态
+    const [syncStatus, setSyncStatus] = useState('idle');
+    const [lastSyncTime, setLastSyncTime] = useState(null);
+
+    // 🔗 工作区 ID（URL 参数 ?id=xxx）
+    const [workspaceId, setWorkspaceId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('id') || '';
+    });
+    const [currentPage, setCurrentPage] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('id') ? 'editor' : 'home';
+    });
+
+    const handleEnterWorkspace = (id) => {
+        setWorkspaceId(id);
+        setCurrentPage('editor');
+        if (id) {
+            const url = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(id)}`;
+            window.history.pushState({}, '', url);
+        }
+    };
+
+    const handleBackToHome = () => {
+        setWorkspaceId('');
+        setCurrentPage('home');
+        window.history.pushState({}, '', window.location.pathname);
+    };
+
+    // 场景管理状态（必须在 workspace effects 之前声明）
     const [floors, setFloors] = useState(() => {
         const saved = loadFromLocalStorage();
         return saved?.floors || [
@@ -3135,6 +3176,63 @@ const App = () => {
         const saved = loadFromLocalStorage();
         return saved?.currentFloorLevelId || 'floor-1';
     }); // 当前楼层ID
+
+    // 🔗 工作区：从 URL 加载场景
+    useEffect(() => {
+        if (!workspaceId) return;
+        const loadWorkspace = async () => {
+            try {
+                console.log('🔗 加载工作区:', workspaceId);
+                const shared = await getSharedScene(workspaceId);
+                if (shared?.scene_data) {
+                    const data = shared.scene_data;
+                    if (data.objects?.length > 0) {
+                        setObjects(data.objects);
+                        commitHistory(data.objects);
+                    }
+                    if (data.floors) setFloors(data.floors);
+                    if (data.lightingConfig) setLightingConfig(prev => ({ ...prev, ...data.lightingConfig }));
+                    setSyncStatus('synced');
+                    setLastSyncTime(new Date());
+                    console.log('🔗 工作区加载完成:', data.objects?.length, '个对象');
+                }
+            } catch (err) {
+                console.warn('🔗 工作区加载失败:', err.message);
+            }
+        };
+        const timer = setTimeout(loadWorkspace, 500);
+        return () => clearTimeout(timer);
+    }, [workspaceId]);
+
+    // 🔗 工作区：场景变化时自动保存（防抖 5 秒）
+    useEffect(() => {
+        if (!workspaceId || objects.length === 0) return;
+        const timer = setTimeout(async () => {
+            try {
+                setSyncStatus('syncing');
+                const cleanObjects = objects.map(o => ({
+                    ...o,
+                    modelUrl: o.modelUrl?.startsWith?.('http') ? o.modelUrl : null,
+                    imageData: o.imageData?.startsWith?.('http') ? o.imageData : null
+                }));
+                const sceneData = {
+                    objects: cleanObjects,
+                    floors,
+                    currentFloorId,
+                    currentFloorLevelId,
+                    lightingConfig,
+                    timestamp: new Date().toISOString()
+                };
+                await saveSharedScene(workspaceId, sceneData, currentScene?.name || '未命名');
+                setSyncStatus('synced');
+                setLastSyncTime(new Date());
+            } catch (err) {
+                console.warn('🔗 工作区保存失败:', err.message);
+                setSyncStatus('error');
+            }
+        }, 5000);
+        return () => clearTimeout(timer);
+    }, [objects, floors, workspaceId]);
     const [showFloorManager, setShowFloorManager] = useState(false);
     const [editingFloor, setEditingFloor] = useState(null);
     const [editingFloorLevelId, setEditingFloorLevelId] = useState(null); // 正在编辑地图的楼层ID
@@ -3147,6 +3245,19 @@ const App = () => {
     const [mergeDialogData, setMergeDialogData] = useState(null); // 合并对话框数据
     const [mergeStrategy, setMergeStrategy] = useState('merge'); // 合并策略选择: 'merge' | 'overwrite'
     const [showOverwriteConfirmDialog, setShowOverwriteConfirmDialog] = useState(false);
+
+    // 🔄 点击外部关闭导出面板
+    useEffect(() => {
+        if (!showExportPanel) return;
+        const handleClickOutside = (e) => {
+            const panel = document.querySelector('.export-panel');
+            if (panel && !panel.contains(e.target)) {
+                setShowExportPanel(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showExportPanel]);
     const [pendingNewSceneData, setPendingNewSceneData] = useState(null);
     const [overwriteDefaultScene, setOverwriteDefaultScene] = useState(false);
 
@@ -3210,10 +3321,9 @@ const App = () => {
     const slamYamlInputRef = useRef(null);
     const slamImageInputRef = useRef(null);
     const jsonImportRef = useRef(null);
+    const sceneImportRef = useRef(null); // 场景导入文件输入
 
-
-
-    // 🔄 自动同步：只在切换场景时同步楼层ID（避免新增楼层时的竞态条件）
+    // 🔄 自动同步：只在切换场景时同步楼层ID
     useEffect(() => {
         if (!currentScene?.floorLevels?.length) return;
 
@@ -3577,6 +3687,64 @@ const App = () => {
     // useEffect(() => {
     //     loadMapData(currentMapPath);
     // }, []);
+
+    // ☁️ 启动时尝试从 Supabase 恢复数据（如果本地没有数据）
+    useEffect(() => {
+        const loadFromSupabase = async () => {
+            try {
+                // 只在地面楼层有数据时尝试恢复（避免覆盖空场景）
+                const currentFloor = floors.find(f => f.id === currentFloorId);
+                const currentLevel = currentFloor?.floorLevels?.find(l => l.id === currentFloorLevelId);
+                const hasLocalData = currentLevel?.objects?.length > 0;
+
+                if (hasLocalData) {
+                    console.log('📦 本地已有数据，跳过 Supabase 恢复');
+                    return;
+                }
+
+                console.log('☁️ 本地无数据，尝试从 Supabase 恢复...');
+                const remoteObjects = await getSceneObjects(currentFloorLevelId);
+
+                if (remoteObjects && remoteObjects.length > 0) {
+                    // 转换 Supabase 格式回应用格式
+                    const restoredObjects = remoteObjects.map(obj => ({
+                        id: obj.object_id || obj.id || uuidv4(),
+                        type: obj.type,
+                        name: obj.name,
+                        position: [obj.position_x || 0, obj.position_y || 0, obj.position_z || 0],
+                        rotation: [obj.rotation_x || 0, obj.rotation_y || 0, obj.rotation_z || 0],
+                        scale: [obj.scale_x || 1, obj.scale_y || 1, obj.scale_z || 1],
+                        color: obj.color || '#cccccc',
+                        opacity: obj.opacity ?? 1,
+                        visible: obj.visible !== false,
+                        locked: obj.locked || false,
+                        modelUrl: obj.model_url || null,
+                        modelScale: obj.model_scale || 1,
+                        points: obj.metadata?.points || null,
+                        thickness: obj.metadata?.thickness || null,
+                        height: obj.metadata?.height || null,
+                        tension: obj.metadata?.tension || null,
+                        closed: obj.metadata?.closed || null,
+                        floorLevel: currentFloorLevel?.name || '1F'
+                    }));
+
+                    setObjects(restoredObjects);
+                    commitHistory(restoredObjects);
+                    setSyncStatus('synced');
+                    setLastSyncTime(new Date());
+                    console.log(`☁️ 从 Supabase 恢复了 ${restoredObjects.length} 个对象`);
+                } else {
+                    console.log('☁️ Supabase 中也没有数据，保持空场景');
+                }
+            } catch (err) {
+                console.warn('☁️ Supabase 恢复失败（离线或未配置）:', err.message);
+            }
+        };
+
+        // 延迟加载，等待组件完全挂载
+        const timer = setTimeout(loadFromSupabase, 1000);
+        return () => clearTimeout(timer);
+    }, [currentFloorId, currentFloorLevelId]); // 只在切换场景/楼层时触发
 
     // 核心：处理地图导入（合并策略管理器）
     const handleMapImport = useCallback(async (jsonContent, isNewScene = true, sceneName = null) => {
@@ -4156,26 +4324,19 @@ const App = () => {
                 })
             }));
 
-            // 🔧 过滤掉对象中的base64数据，只保留HTTP URL或assetId引用
+            // 🔧 优先保留 base64 模型数据（不主动过滤），只在空间不足时才降级
             objectsToSave = objects.map(obj => {
                 let filteredObj = { ...obj };
-
-                // 过滤 modelUrl 的 base64
-                if (filteredObj.modelUrl && filteredObj.modelUrl.startsWith('data:')) {
-                    console.log('⚠️ 过滤掉大型 base64 modelUrl:', obj.name);
-                    filteredObj.modelUrl = null;
-                    filteredObj._modelUrlFiltered = true;
-                }
+                // 🔑 注意：不再主动过滤 modelUrl base64！
+                // 刷新后模型数据需要从 modelUrl 恢复
+                // 如果存储空间不足，由 catch 块中的降级逻辑处理
 
                 // 🔑 过滤 map_image 的 imageData (PNG底图的base64数据)
                 // 但保留 SMAP 生成的底图（有 smapHeader 且 imageData 较小）
                 if (filteredObj.type === 'map_image' && filteredObj.imageData && filteredObj.imageData.startsWith('data:')) {
-                    // SMAP 生成的底图通常较小，可以保留
                     if (filteredObj.smapHeader) {
                         console.log('✅ 保留SMAP底图 imageData:', obj.name);
-                        // 保留 smapHeader，用于刷新后识别
                     } else {
-                        // 非 SMAP 的大型 PNG 底图，需要过滤
                         console.log('⚠️ 过滤掉大型 base64 imageData:', obj.name, '(需要重新上传)');
                         filteredObj.imageData = null;
                         filteredObj._imageDataFiltered = true;
@@ -4209,27 +4370,62 @@ const App = () => {
             console.log('💾 自动保存到本地存储 (v' + CURRENT_VERSION + ')');
         } catch (error) {
             console.error('❌ 保存到本地存储失败:', error);
-            // 如果保存失败（可能是因为数据太大），尝试不保存自定义资产
+            // 如果保存失败（可能是因为数据太大），尝试降级保存
             if (error.name === 'QuotaExceededError') {
-                console.warn('⚠️ 存储空间不足，尝试不保存自定义资产...');
+                console.warn('⚠️ 存储空间不足，降级保存（移除大型 base64 模型数据）...');
                 try {
+                    // 降级：过滤掉 base64 modelUrl 以节省空间
+                    const degradedObjects = objectsToSave.map(o => {
+                        if (o.modelUrl?.startsWith?.('data:')) {
+                            return { ...o, modelUrl: null, _modelUrlFiltered: true };
+                        }
+                        return o;
+                    });
                     const dataToSave = {
                         floors: floorsToSave,
                         currentFloorId,
                         currentFloorLevelId,
-                        objects: objectsToSave,
-                        lightingConfig, // 🔑 保存灯光配置
+                        objects: degradedObjects,
+                        lightingConfig,
                         timestamp: new Date().toISOString()
                     };
                     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
-                    localStorage.setItem(DATA_VERSION_KEY, CURRENT_VERSION); // 保存版本号
-                    console.log('💾 已保存（不包含自定义资产，v' + CURRENT_VERSION + ')');
+                    localStorage.setItem(DATA_VERSION_KEY, CURRENT_VERSION);
+                    console.log('💾 已降级保存（仅模型元数据已同步到 Supabase）');
                 } catch (e) {
-                    console.error('❌ 保存失败:', e);
+                    console.error('❌ 降级保存也失败:', e);
                 }
             }
         }
     }, [floors, currentFloorId, currentFloorLevelId, objects, customAssets, lightingConfig]);
+
+    // ☁️ 自动同步到 Supabase（防抖 3 秒）
+    useEffect(() => {
+        if (!currentFloorLevel?.id || objects.length === 0) return;
+
+        const timer = setTimeout(async () => {
+            try {
+                setSyncStatus('syncing');
+                // 保存所有对象的元数据（base64模型数据用 null 代替）
+                const floorObjects = objects.map(o => ({
+                    ...o,
+                    // 如果是 base64 数据，Supabase 中保存 null（模型文件需单独上传）
+                    modelUrl: o.modelUrl?.startsWith?.('http') ? o.modelUrl : null,
+                    imageData: o.imageData?.startsWith?.('http') ? o.imageData : null
+                }));
+
+                await saveSceneObjects(currentFloorLevel.id, floorObjects);
+                setSyncStatus('synced');
+                setLastSyncTime(new Date());
+                console.log('☁️ 已同步到 Supabase:', floorObjects.length, '个对象');
+            } catch (err) {
+                console.warn('☁️ Supabase 同步失败:', err.message);
+                setSyncStatus('error');
+            }
+        }, 3000);
+
+        return () => clearTimeout(timer);
+    }, [objects, currentFloorLevel?.id]);
 
     // 同步批量选择状态
     useEffect(() => {
@@ -4543,6 +4739,101 @@ const App = () => {
         });
     };
 
+    // 🔍 全局预览模式
+    const enterPreviewMode = useCallback(() => {
+        setIsPreviewMode(true);
+        setAutoRotate(true);
+        setSelectedId(null);
+        setSelectedIds([]);
+        setToolMode('select');
+        setTransformMode(null);
+        setIsBoxSelecting(false);
+        setShowExportPanel(false);
+        setMultiFloorPreview(false); // 退出多楼层预览
+        console.log('🔍 进入全局预览模式');
+    }, []);
+
+    const exitPreviewMode = useCallback(() => {
+        setIsPreviewMode(false);
+        setAutoRotate(false);
+        console.log('🔍 退出全局预览模式');
+    }, []);
+
+    // 键盘快捷键：Ctrl+P 进入/退出预览
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                if (isPreviewMode) {
+                    exitPreviewMode();
+                } else {
+                    enterPreviewMode();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPreviewMode, enterPreviewMode, exitPreviewMode]);
+
+    // 🔍 预览模式：ESC 退出
+    useEffect(() => {
+        const handleEsc = (e) => {
+            if (e.key === 'Escape' && isPreviewMode) {
+                exitPreviewMode();
+            }
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [isPreviewMode, exitPreviewMode]);
+
+    // 🔍 预览模式：自动适配相机包围场景
+    useEffect(() => {
+        if (!isPreviewMode || !orbitControlsRef.current || !sceneRef) return;
+
+        const timer = setTimeout(() => {
+            try {
+                const controls = orbitControlsRef.current;
+                const camera = controls.object;
+                if (!camera) return;
+
+                // 计算所有可视对象的包围盒
+                const box = new THREE.Box3();
+                sceneRef.traverse((child) => {
+                    if (child.isMesh && child.visible && !child.userData?.isGround && !child.userData?.locked) {
+                        box.expandByObject(child);
+                    }
+                });
+
+                if (!box.isEmpty()) {
+                    const center = new THREE.Vector3();
+                    box.getCenter(center);
+                    const size = new THREE.Vector3();
+                    box.getSize(size);
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const distance = Math.max(maxDim * 2.0, 10);
+
+                    camera.position.set(
+                        center.x + distance * 0.6,
+                        center.y + distance * 0.8,
+                        center.z + distance * 0.6
+                    );
+                    controls.target.copy(center);
+                    controls.update();
+
+                    console.log('🔍 预览：相机已适配场景', {
+                        center: center.toArray().map(v => v.toFixed(1)),
+                        maxDim: maxDim.toFixed(1),
+                        distance: distance.toFixed(1)
+                    });
+                }
+            } catch (err) {
+                console.warn('⚠️ 预览模式相机适配失败:', err);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [isPreviewMode, sceneRef]);
+
     const handleAddAsset = async (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -4696,7 +4987,186 @@ const App = () => {
         }
     };
 
-    // 替换自定义资产的模型文件
+    // 场景导出功能
+    const handleExportScene = () => {
+        try {
+            const exportData = {
+                version: '2.1',
+                exportTime: new Date().toISOString(),
+                sceneName: currentScene?.name || '未命名场景',
+                sceneId: currentScene?.id || 'default',
+                activeFloor: currentFloorLevel?.name || '1F',
+            };
+
+            // 🔹 1. 路网数据（路径+点位）
+            if (exportOptions.roadNetwork) {
+                const waypoints = objects.filter(o => o.type === 'waypoint').map(w => ({
+                    id: w.id,
+                    name: w.name,
+                    position: w.position,
+                    rotation: w.rotation,
+                    sourceRefId: w.sourceRefId,
+                    floorLevel: w.floorLevel,
+                    poseData: w.poseData,  // 原始ROS点位数据
+                    visualConfig: w.visualConfig
+                }));
+
+                const paths = objects.filter(o => o.type === 'path_line').map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    points: p.points,
+                    sourceRefId: p.sourceRefId,
+                    pathData: p.pathData,
+                    color: p.color,
+                    opacity: p.opacity
+                }));
+
+                exportData.roadNetwork = {
+                    waypoints,
+                    paths,
+                    totalWaypoints: waypoints.length,
+                    totalPaths: paths.length
+                };
+            }
+
+            // 🔹 2. 地图点位（含pose元数据）
+            if (exportOptions.waypoints) {
+                const mapWaypoints = objects
+                    .filter(o => o.type === 'waypoint' && o.poseData)
+                    .map(w => ({
+                        id: w.id,
+                        name: w.name,
+                        position: w.position,       // Three.js坐标
+                        poseData: w.poseData,       // 原始ROS pose（含x, y, yaw等）
+                        floorLevel: w.floorLevel,
+                        mapFileId: w.mapFileId
+                    }));
+
+                exportData.mapWaypoints = {
+                    waypoints: mapWaypoints,
+                    total: mapWaypoints.length
+                };
+            }
+
+            // 🔹 3. 3D模型文件引用
+            if (exportOptions.models3D) {
+                const models3D = objects
+                    .filter(o => o.type === 'custom_model' || (o.modelUrl && o.type !== 'waypoint'))
+                    .map(m => ({
+                        id: m.id,
+                        name: m.name,
+                        type: m.type,
+                        modelUrl: m.modelUrl,        // GLB/GLTF URL
+                        modelScale: m.modelScale,
+                        autoFitToSLAM: m.autoFitToSLAM,
+                        position: m.position,
+                        rotation: m.rotation,
+                        scale: m.scale,
+                        assetId: m.assetId,
+                        locked: m.locked
+                    }));
+
+                exportData.models3D = {
+                    models: models3D,
+                    total: models3D.length,
+                    note: 'modelUrl为GLB/GLTF文件引用地址，需确保导入时URL可访问'
+                };
+            }
+
+            // 🔹 4. SLAM底图（包含完整图片数据）
+            if (exportOptions.baseMap) {
+                const baseMaps = objects.filter(o => o.isBaseMap || o.type === 'map_image').map(b => ({
+                    id: b.id,
+                    name: b.name,
+                    scale: b.scale,
+                    mapMetadata: b.mapMetadata,
+                    position: b.position,
+                    opacity: b.opacity,
+                    imageData: b.imageData || null  // 🔑 保留完整数据
+                }));
+
+                exportData.baseMaps = {
+                    maps: baseMaps,
+                    total: baseMaps.length,
+                    note: baseMaps.some(m => m.imageData?.startsWith?.('data:'))
+                        ? '⚠️ 底图含base64图片，JSON文件可能较大'
+                        : '底图使用URL引用'
+                };
+            }
+
+            // 🔹 5. 建筑物对象（墙、门、柱、地面等）
+            if (exportOptions.buildingObjects) {
+                const buildingTypes = ['wall', 'wall_path', 'curved_wall', 'door', 'column', 'floor', 'polygon_floor', 'cube', 'cnc', 'device'];
+                const buildings = objects
+                    .filter(o => buildingTypes.includes(o.type))
+                    .map(b => ({
+                        id: b.id,
+                        name: b.name,
+                        type: b.type,
+                        position: b.position,
+                        rotation: b.rotation,
+                        scale: b.scale,
+                        color: b.color,
+                        opacity: b.opacity,
+                        visible: b.visible,
+                        locked: b.locked,
+                        points: b.points,          // 曲线墙/地面的顶点数据
+                        thickness: b.thickness,
+                        height: b.height,
+                        tension: b.tension,
+                        closed: b.closed,
+                        modelUrl: b.modelUrl,      // CNC等特殊模型
+                        modelScale: b.modelScale
+                    }));
+
+                exportData.buildingObjects = {
+                    objects: buildings,
+                    total: buildings.length
+                };
+            }
+
+            // 🔹 6. 场景元数据
+            exportData.lighting = lightingConfig;
+            exportData.cameraSettings = {
+                viewMode,
+                cameraView,
+                cameraZoom
+            };
+            exportData.gridSettings = {
+                enableSnap,
+                gridSize
+            };
+
+            // 生成JSON字符串
+            const jsonStr = exportOptions.prettyPrint
+                ? JSON.stringify(exportData, null, 2)
+                : JSON.stringify(exportData);
+
+            // 下载文件
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            a.href = url;
+            a.download = `scene-export-${exportData.sceneName}-${timestamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log('✅ 场景导出成功！', {
+                sceneName: exportData.sceneName,
+                roadNetwork: exportOptions.roadNetwork ? `${exportData.roadNetwork?.totalWaypoints}个点位, ${exportData.roadNetwork?.totalPaths}条路径` : '未导出',
+                models3D: exportOptions.models3D ? `${exportData.models3D?.total}个模型` : '未导出',
+                buildingObjects: exportOptions.buildingObjects ? `${exportData.buildingObjects?.total}个建筑` : '未导出'
+            });
+
+            setShowExportPanel(false);
+        } catch (error) {
+            console.error('❌ 场景导出失败:', error);
+            alert('导出失败：' + error.message);
+        }
+    };
     const handleReplaceAsset = (asset, file) => {
         if (file.size > 10 * 1024 * 1024) {
             alert('⚠️ 文件太大！请选择小于10MB的模型文件。');
@@ -5662,6 +6132,184 @@ const App = () => {
         }
     };
     // JSON Project Import Handler
+    const handleSceneImport = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const json = JSON.parse(text);
+
+            // 检测是否为场景导出格式
+            if (!json.version || !json.exportTime) {
+                // 不是场景导出格式，尝试作为地图JSON处理
+                if (json.mapfileEntitys || json.graphTopologys) {
+                    console.log('🗺️ 检测到地图JSON，使用地图导入...');
+                    loadMapFromJSON(json);
+                    return;
+                }
+                alert('⚠️ 无法识别的文件格式。请使用"场景导出"功能生成的JSON文件。');
+                return;
+            }
+
+            console.log('📥 开始导入场景:', json.sceneName);
+
+            const newObjects = [...objects]; // 保留现有对象
+
+            // 1. 导入路网数据
+            if (json.roadNetwork) {
+                json.roadNetwork.waypoints?.forEach(w => {
+                    const exists = newObjects.find(o => o.id === w.id && o.type === 'waypoint');
+                    if (!exists) {
+                        newObjects.push({
+                            id: w.id,
+                            type: 'waypoint',
+                            name: w.name || '点位',
+                            position: w.position || [0, 0.1, 0],
+                            rotation: w.rotation || [0, 0, 0],
+                            scale: [0.3, 0.3, 0.3],
+                            color: '#FFC107',
+                            opacity: 1,
+                            visible: true,
+                            sourceRefId: w.sourceRefId,
+                            floorLevel: w.floorLevel || currentFloorLevel?.name || '1F',
+                            poseData: w.poseData,
+                            visualConfig: w.visualConfig || { modelUrl: null, customColor: null, customScale: null }
+                        });
+                    }
+                });
+
+                json.roadNetwork.paths?.forEach(p => {
+                    const exists = newObjects.find(o => o.id === p.id && o.type === 'path_line');
+                    if (!exists) {
+                        newObjects.push({
+                            id: p.id,
+                            type: 'path_line',
+                            name: p.name || '路径',
+                            points: p.points || [],
+                            position: [0, 0.05, 0],
+                            rotation: [0, 0, 0],
+                            scale: [1, 1, 1],
+                            color: p.color || '#FF9800',
+                            opacity: p.opacity || 0.8,
+                            visible: true,
+                            sourceRefId: p.sourceRefId,
+                            pathData: p.pathData
+                        });
+                    }
+                });
+
+                console.log(`  ✅ 路网: ${json.roadNetwork.totalWaypoints || 0} 点位, ${json.roadNetwork.totalPaths || 0} 路径`);
+            }
+
+            // 2. 导入3D模型
+            if (json.models3D?.models) {
+                json.models3D.models.forEach(m => {
+                    const exists = newObjects.find(o => o.id === m.id);
+                    if (!exists) {
+                        newObjects.push({
+                            id: m.id,
+                            type: m.type || 'custom_model',
+                            name: m.name || '3D模型',
+                            position: m.position || [0, 0, 0],
+                            rotation: m.rotation || [0, 0, 0],
+                            scale: m.scale || [1, 1, 1],
+                            color: '#ffffff',
+                            opacity: 1,
+                            visible: true,
+                            locked: m.locked || false,
+                            modelUrl: m.modelUrl,
+                            modelScale: m.modelScale || 1,
+                            autoFitToSLAM: m.autoFitToSLAM !== false,
+                            assetId: m.assetId,
+                            floorLevel: currentFloorLevel?.name || '1F'
+                        });
+                    }
+                });
+                console.log(`  ✅ 3D模型: ${json.models3D.total || json.models3D.models.length} 个`);
+            }
+
+            // 3. 导入建筑物对象
+            if (json.buildingObjects?.objects) {
+                json.buildingObjects.objects.forEach(b => {
+                    const exists = newObjects.find(o => o.id === b.id);
+                    if (!exists) {
+                        newObjects.push({
+                            id: b.id,
+                            type: b.type,
+                            name: b.name || '建筑',
+                            position: b.position || [0, 0, 0],
+                            rotation: b.rotation || [0, 0, 0],
+                            scale: b.scale || [1, 1, 1],
+                            color: b.color || '#cccccc',
+                            opacity: b.opacity ?? 1,
+                            visible: b.visible !== false,
+                            locked: b.locked || false,
+                            points: b.points,
+                            thickness: b.thickness,
+                            height: b.height,
+                            tension: b.tension,
+                            closed: b.closed,
+                            modelUrl: b.modelUrl,
+                            modelScale: b.modelScale,
+                            floorLevel: currentFloorLevel?.name || '1F'
+                        });
+                    }
+                });
+                console.log(`  ✅ 建筑物: ${json.buildingObjects.total || json.buildingObjects.objects.length} 个`);
+            }
+
+            // 4. 导入SLAM底图
+            if (json.baseMaps?.maps) {
+                json.baseMaps.maps.forEach(b => {
+                    const exists = newObjects.find(o => o.id === b.id && o.isBaseMap);
+                    if (!exists) {
+                        newObjects.push({
+                            id: b.id,
+                            type: 'map_image',
+                            isBaseMap: true,
+                            name: b.name || '地图底图',
+                            position: b.position || [0, 0.1, 0],
+                            rotation: [0, 0, 0],
+                            scale: b.scale || [10, 1, 10],
+                            color: '#ffffff',
+                            opacity: b.opacity || 0.5,
+                            visible: true,
+                            locked: true,
+                            imageData: b.imageData,
+                            mapMetadata: b.mapMetadata
+                        });
+                    }
+                });
+                console.log(`  ✅ 底图: ${json.baseMaps.total || json.baseMaps.maps.length} 张`);
+            }
+
+            // 5. 恢复灯光配置
+            if (json.lighting) {
+                setLightingConfig(prev => ({ ...prev, ...json.lighting }));
+                console.log('  ✅ 灯光配置已恢复');
+            }
+
+            // 6. 恢复吸附设置
+            if (json.gridSettings) {
+                setEnableSnap(json.gridSettings.enableSnap ?? true);
+                setGridSize(json.gridSettings.gridSize ?? 1);
+            }
+
+            // 应用新对象
+            setObjects(newObjects);
+            commitHistory(newObjects);
+
+            console.log(`✅ 场景导入完成！总计 ${newObjects.length} 个对象`);
+            alert(`✅ 场景导入成功！\n\n场景: ${json.sceneName}\n导出时间: ${json.exportTime}\n\n已导入:\n${json.roadNetwork ? `• 路网: ${json.roadNetwork.totalWaypoints || 0} 点位, ${json.roadNetwork.totalPaths || 0} 路径\n` : ''}${json.models3D ? `• 3D模型: ${json.models3D.total || json.models3D.models?.length || 0} 个\n` : ''}${json.buildingObjects ? `• 建筑物: ${json.buildingObjects.total || json.buildingObjects.objects?.length || 0} 个\n` : ''}总计: ${newObjects.length} 个对象`);
+        } catch (error) {
+            console.error('❌ 场景导入失败:', error);
+            alert('场景导入失败：' + error.message);
+        } finally {
+            if (sceneImportRef.current) sceneImportRef.current.value = '';
+        }
+    };
+
     const handleJSONImport = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -6383,6 +7031,11 @@ const App = () => {
     }, [objects, isDragging, dragOffset, selectedIds, currentFloorLevel, multiFloorPreview, currentScene, FLOOR_SPACING]);
 
     return (
+        <>
+            {currentPage === 'home' && (
+                <HomePage onEnterWorkspace={handleEnterWorkspace} />
+            )}
+            {currentPage === 'editor' && (
         <div className={`flex h-screen w-screen bg-[#080808] text-gray-300 overflow-hidden select-none ${toolMode.startsWith('draw') ? 'cursor-crosshair' : ''}`}>
             {editingAsset && (
                 <AssetEditModal
@@ -8283,6 +8936,151 @@ const App = () => {
                         >
                             <Magnet size={18} strokeWidth={enableSnap ? 2.5 : 2} />
                         </button>
+                        <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
+                        {/* � 预览按钮 */}
+                        <button
+                            onClick={() => isPreviewMode ? exitPreviewMode() : enterPreviewMode()}
+                            className={`p-2.5 rounded-lg transition-all duration-200 ${isPreviewMode
+                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                                : 'text-gray-400 hover:bg-[#333] hover:text-gray-200'
+                                }`}
+                            title={`全局预览 (Ctrl+P)${isPreviewMode ? ' - 退出' : ''}`}
+                        >
+                            <Play size={18} strokeWidth={2} />
+                        </button>
+                        <div className="w-px h-5 bg-gray-700/50 mx-1 self-center"></div>
+                        {/* �🔄 场景导出按钮 */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowExportPanel(!showExportPanel)}
+                                className={`p-2.5 rounded-lg transition-all duration-200 ${showExportPanel
+                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                                    : 'text-gray-400 hover:bg-[#333] hover:text-gray-200'
+                                    }`}
+                                title="导出场景"
+                            >
+                                <Download size={18} strokeWidth={2} />
+                            </button>
+                            {/* 导出选项面板 */}
+                            {showExportPanel && (
+                                <div className="export-panel absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 bg-[#161616] border border-[#333] rounded-xl shadow-2xl z-50 p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-xs font-bold text-white">📦 场景导出</span>
+                                        <button onClick={() => setShowExportPanel(false)} className="text-gray-500 hover:text-white p-0.5">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2 mb-3">
+                                        {[
+                                            { key: 'roadNetwork', label: '🛤️ 路网数据', desc: '路径 + 点位' },
+                                            { key: 'waypoints', label: '📍 地图点位', desc: '含pose元数据' },
+                                            { key: 'models3D', label: '🧊 3D模型文件', desc: 'GLB/GLTF引用' },
+                                            { key: 'baseMap', label: '🗺️ SLAM底图', desc: '地图尺寸信息' },
+                                            { key: 'buildingObjects', label: '🏗️ 建筑物体', desc: '墙/门/柱/地面' },
+                                        ].map(item => (
+                                            <label key={item.key} className="flex items-center gap-2 cursor-pointer group">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={exportOptions[item.key]}
+                                                    onChange={() => setExportOptions(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                                                    className="accent-emerald-600 w-3.5 h-3.5 cursor-pointer"
+                                                />
+                                                <div className="flex-1">
+                                                    <span className="text-[11px] text-gray-300 group-hover:text-white">{item.label}</span>
+                                                    <span className="text-[9px] text-gray-600 ml-1">{item.desc}</span>
+                                                </div>
+                                            </label>
+                                        ))}
+                                        <div className="border-t border-[#2a2a2a] pt-2 mt-2">
+                                            <label className="flex items-center gap-2 cursor-pointer group">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={exportOptions.prettyPrint}
+                                                    onChange={() => setExportOptions(prev => ({ ...prev, prettyPrint: !prev.prettyPrint }))}
+                                                    className="accent-emerald-600 w-3.5 h-3.5 cursor-pointer"
+                                                />
+                                                <span className="text-[11px] text-gray-400 group-hover:text-white">格式化 JSON</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleExportScene}
+                                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Download size={14} />
+                                        导出 JSON 文件
+                                    </button>
+                                    <div className="border-t border-[#2a2a2a] mt-3 pt-3">
+                                        <button
+                                            onClick={() => sceneImportRef.current?.click()}
+                                            className="w-full py-2 bg-[#222] hover:bg-[#333] text-gray-300 text-xs rounded-lg transition-colors flex items-center justify-center gap-2 border border-[#333]"
+                                        >
+                                            <Upload size={14} />
+                                            导入场景文件
+                                        </button>
+                                        <input
+                                            type="file"
+                                            ref={sceneImportRef}
+                                            className="hidden"
+                                            accept=".json"
+                                            onChange={handleSceneImport}
+                                        />
+                                    </div>
+                                    {/* 🔗 工作区ID */}
+                                    <div className="border-t border-[#2a2a2a] mt-3 pt-3">
+                                        <div className="text-[10px] text-gray-500 mb-1.5">🔗 工作区 ID（多设备同步）</div>
+                                        <div className="flex gap-1.5">
+                                            <input
+                                                type="text"
+                                                value={workspaceId}
+                                                onChange={(e) => {
+                                                    setWorkspaceId(e.target.value);
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && workspaceId) {
+                                                        const url = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(workspaceId)}`;
+                                                        window.location.href = url;
+                                                    }
+                                                }}
+                                                placeholder="输入ID或留空"
+                                                className="flex-1 bg-[#0f0f0f] border border-[#333] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-emerald-500"
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    const randomId = 'ws-' + Math.random().toString(36).slice(2, 10);
+                                                    setWorkspaceId(randomId);
+                                                    const url = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(randomId)}`;
+                                                    window.location.href = url;
+                                                }}
+                                                className="px-2 py-1.5 bg-[#222] hover:bg-[#333] text-[10px] text-gray-400 rounded border border-[#333]"
+                                                title="生成随机ID"
+                                            >
+                                                🎲
+                                            </button>
+                                        </div>
+                                        {workspaceId && (
+                                            <button
+                                                onClick={() => {
+                                                    const url = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(workspaceId)}`;
+                                                    navigator.clipboard.writeText(url).then(() => {
+                                                        alert('✅ 链接已复制！\n\n在其他设备打开此链接即可同步场景。');
+                                                    });
+                                                }}
+                                                className="w-full mt-1.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-[10px] rounded-lg transition-colors flex items-center justify-center gap-1 border border-emerald-600/30"
+                                            >
+                                                <Copy size={12} />
+                                                复制同步链接
+                                            </button>
+                                        )}
+                                        {workspaceId && syncStatus === 'synced' && (
+                                            <div className="text-[9px] text-emerald-500 mt-1 text-center">
+                                                ✅ 已同步 · 在其他设备打开链接即可加载
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -8441,24 +9239,78 @@ const App = () => {
                             </button>
                             {/* 分隔线 */}
                             <div className="w-6 h-px bg-gray-700/50 mx-auto my-0.5"></div>
-                            {/* 灯光配置按钮 - 隐藏入口 */}
+                            {/* 灯光配置按钮 */}
                             <button
                                 onClick={() => setShowLightingPanel(!showLightingPanel)}
                                 className={`p-2 rounded-md transition-all ${showLightingPanel ? 'text-yellow-400 bg-yellow-900/20' : 'text-gray-600 hover:bg-[#333] hover:text-gray-400'}`}
-                                title="灯光配置 (隐藏)"
+                                title="灯光配置"
                             >
                                 <Sun size={18} />
+                            </button>
+                            {/* 分隔线 */}
+                            <div className="w-6 h-px bg-gray-700/50 mx-auto my-0.5"></div>
+                            {/* ☁️ 云端同步状态 */}
+                            <button
+                                onClick={() => {
+                                    // 手动触发同步
+                                    setSyncStatus('syncing');
+                                    const floorObjects = objects.filter(o => !o.modelUrl?.startsWith?.('data:') && !o.imageData?.startsWith?.('data:'));
+                                    saveSceneObjects(currentFloorLevel?.id, floorObjects)
+                                        .then(() => { setSyncStatus('synced'); setLastSyncTime(new Date()); })
+                                        .catch(() => setSyncStatus('error'));
+                                }}
+                                className={`p-2 rounded-md transition-all ${syncStatus === 'synced' ? 'text-emerald-400' :
+                                        syncStatus === 'syncing' ? 'text-blue-400 animate-pulse' :
+                                            syncStatus === 'error' ? 'text-red-400' : 'text-gray-600 hover:bg-[#333] hover:text-gray-400'
+                                    }`}
+                                title={`云端同步: ${syncStatus === 'synced' ? '已同步' + (lastSyncTime ? ` (${lastSyncTime.toLocaleTimeString()})` : '') :
+                                        syncStatus === 'syncing' ? '同步中...' :
+                                            syncStatus === 'error' ? '同步失败' : '未同步'}`}
+                            >
+                                <Database size={18} />
                             </button>
                         </div>
 
                     </div>
                 )}
 
-                {/* Preview Mode Exit Hint */}
+                {/* 🔍 全局预览模式 UI */}
                 {isPreviewMode && (
-                    <div className="absolute top-4 left-4 z-20 bg-black/50 backdrop-blur px-3 py-1.5 rounded text-xs text-gray-300 border border-white/10">
-                        按 <kbd className="bg-[#333] px-1 rounded border border-[#444] text-[10px]">ESC</kbd> 退出预览
-                    </div>
+                    <>
+                        {/* 顶部提示栏 */}
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-black/70 backdrop-blur-xl px-5 py-2.5 rounded-xl border border-white/15 flex items-center gap-4 shadow-2xl">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                                <span className="text-xs font-bold text-white tracking-wide">场景预览</span>
+                            </div>
+                            <div className="w-px h-4 bg-white/20"></div>
+                            <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                                <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[9px] border border-white/10">Ctrl+P</kbd> 退出</span>
+                                <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[9px] border border-white/10">ESC</kbd> 退出</span>
+                            </div>
+                        </div>
+                        {/* 底部控制栏 */}
+                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 bg-black/70 backdrop-blur-xl px-4 py-2.5 rounded-xl border border-white/15 flex items-center gap-3 shadow-2xl">
+                            <button
+                                onClick={() => setAutoRotate(!autoRotate)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${autoRotate
+                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                                    : 'text-gray-400 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <RotateCw size={14} className={autoRotate ? 'animate-spin' : ''} style={{ animationDuration: '4s' }} />
+                                {autoRotate ? '自动旋转: 开' : '自动旋转: 关'}
+                            </button>
+                            <div className="w-px h-4 bg-white/20"></div>
+                            <button
+                                onClick={exitPreviewMode}
+                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-medium transition-all"
+                            >
+                                <X size={14} />
+                                退出预览
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {/* 灯光配置浮动面板 */}
@@ -9571,12 +10423,18 @@ const App = () => {
                                     enableDamping
                                     dampingFactor={0.1}
                                     rotateSpeed={0.5}
-                                    enabled={toolMode === 'select' && !isEditingPoints && !isBoxSelecting}
-                                    enableRotate={cameraView === 'perspective'}
-                                    mouseButtons={{
-                                        LEFT: null,           // 左键留给选择和框选
-                                        MIDDLE: THREE.MOUSE.DOLLY,  // 中键缩放
-                                        RIGHT: THREE.MOUSE.ROTATE   // 右键旋转视角
+                                    autoRotate={isPreviewMode && autoRotate}
+                                    autoRotateSpeed={1.5}
+                                    enabled={isPreviewMode ? true : (toolMode === 'select' && !isEditingPoints && !isBoxSelecting)}
+                                    enableRotate={isPreviewMode ? true : (cameraView === 'perspective')}
+                                    mouseButtons={isPreviewMode ? {
+                                        LEFT: THREE.MOUSE.ROTATE,
+                                        MIDDLE: THREE.MOUSE.DOLLY,
+                                        RIGHT: THREE.MOUSE.PAN
+                                    } : {
+                                        LEFT: null,
+                                        MIDDLE: THREE.MOUSE.DOLLY,
+                                        RIGHT: THREE.MOUSE.ROTATE
                                     }}
                                 />
                             )}
@@ -11202,9 +12060,9 @@ const App = () => {
                 )
             }
         </div >
+            )}
+        </>
     );
 };
-
-
 
 export default App;
