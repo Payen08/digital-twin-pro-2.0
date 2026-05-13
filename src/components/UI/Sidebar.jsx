@@ -117,7 +117,7 @@ const Sidebar = ({
                         {/* SLAM Maps */}
                         <div>
                             <div className="text-[10px] font-bold text-gray-600 uppercase mb-2 px-1">SLAM 地图</div>
-                            <button onClick={() => setShowMapSelector(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-md bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transition-all text-white border border-green-500/50 mb-2">
+                            <button onClick={() => setShowMapSelector(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-md bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all text-white border border-blue-500/50 mb-2">
                                 <MapIcon size={16} />
                                 <span className="text-[11px] font-bold">选择内置地图</span>
                             </button>

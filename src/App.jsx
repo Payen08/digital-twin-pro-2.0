@@ -1,13 +1,13 @@
-import React, { useState, useRef, useEffect, Suspense, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, Suspense, useCallback, useMemo, useLayoutEffect } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Html, Line, Edges, Text, ContactShadows, PerspectiveCamera, OrthographicCamera, useGLTF, Grid, useCursor } from '@react-three/drei';
 import {
     MousePointer2, Move, RotateCw, Maximize, Copy, Trash2, Eye, EyeOff, Lock, Unlock,
     PenTool, Spline, LandPlot, BrickWall, DoorOpen, Columns, Box, Server,
     Search, Upload, Download, Save, FolderOpen, Settings, Info,
-    Undo2, Redo2, ZoomIn, ZoomOut, RotateCcw, ArrowDownToLine,
+    Undo2, Redo2, ZoomIn, ZoomOut, RotateCcw, ArrowDownToLine, ArrowLeft,
     RefreshCw, Edit3, PlusSquare, Minus, Plus, X, Check, AlertTriangle,
-    LayoutTemplate, Layers3, Layers, Map, FileJson, BoxIcon, Maximize2, Home, Play, CopyCheck, Square, GripVertical, Database, ChevronDown, ChevronRight, Ruler, Magnet, PanelRightClose, PanelRight, Route, Sun, Lightbulb
+    LayoutTemplate, Layers3, Layers, Map as MapIcon, FileJson, BoxIcon, Maximize2, Home, Play, CopyCheck, Square, GripVertical, Database, ChevronDown, ChevronRight, Ruler, Magnet, PanelRightClose, PanelRight, Route, Sun, Lightbulb
 } from 'lucide-react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
@@ -30,18 +30,126 @@ import { rosToThreeJS } from './utils/coordinates';
 import { parseSLAMConfig } from './utils/slamParser';
 import { loadFloorData, poseToWaypoint, mapDataToBaseMap, getAvailableMaps } from './utils/floorDataLoader';
 import { parseFullMapJson, checkSpatialConflicts, smartMergeEntities, isSceneClean } from './utils/mapParser';
+import { createCompactScenePayload, inflateCompactScenePayload } from './utils/sceneSerializer';
 
 // Import batch operations
 import BoxSelection from './components/BoxSelection';
 import BatchOperations from './components/BatchOperations';
-import HomePage from './components/HomePage';
+import HomePage from './components/pages/HomePage';
+import ProjectsPage from './components/pages/ProjectsPage';
 import { useBatchOperations } from './hooks/useBatchOperations';
 import './styles/BatchOperations.css';
 
 // GLTF 组件包装器
 const Gltf = ({ src, ...props }) => {
     const { scene } = useGLTF(src);
-    return <primitive object={scene.clone()} {...props} />;
+    const cloned = useMemo(() => {
+        const copy = scene.clone();
+        copy.traverse((child) => {
+            if (child.isMesh && child.material) {
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach(mat => {
+                    if (mat.transparent || mat.opacity < 1) { mat.depthWrite = false; mat.needsUpdate = true; }
+                });
+            }
+        });
+        return copy;
+    }, [scene]);
+    return <primitive object={cloned} {...props} />;
+};
+
+const InstancedGltfGroup = ({ src, instances, onSelect }) => {
+    const { scene } = useGLTF(src);
+    const meshRefs = useRef([]);
+
+    const sourceMeshes = useMemo(() => {
+        const meshes = [];
+        scene.updateMatrixWorld(true);
+        scene.traverse((child) => {
+            if (child.isMesh && child.geometry && child.material) {
+                meshes.push({
+                    geometry: child.geometry,
+                    material: child.material,
+                    matrix: child.matrixWorld.clone()
+                });
+            }
+        });
+        return meshes;
+    }, [scene]);
+
+    useLayoutEffect(() => {
+        const composeMatrix = new THREE.Matrix4();
+        const position = new THREE.Vector3();
+        const quaternion = new THREE.Quaternion();
+        const rotation = new THREE.Euler();
+        const scale = new THREE.Vector3();
+
+        meshRefs.current.forEach((mesh, meshIndex) => {
+            if (!mesh) return;
+            const sourceMesh = sourceMeshes[meshIndex];
+
+            instances.forEach((obj, instanceIndex) => {
+                position.fromArray(obj.position || [0, 0, 0]);
+                rotation.fromArray(obj.rotation || [0, 0, 0]);
+                quaternion.setFromEuler(rotation);
+                const modelScale = obj.modelScale || 1;
+                scale.fromArray(obj.scale || [1, 1, 1]).multiplyScalar(modelScale);
+                composeMatrix.compose(position, quaternion, scale);
+                composeMatrix.multiply(sourceMesh.matrix);
+                mesh.setMatrixAt(instanceIndex, composeMatrix);
+            });
+
+            mesh.count = instances.length;
+            mesh.instanceMatrix.needsUpdate = true;
+            if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        });
+    }, [instances, sourceMeshes]);
+
+    if (!src || instances.length === 0 || sourceMeshes.length === 0) return null;
+
+    return (
+        <group>
+            {sourceMeshes.map((mesh, meshIndex) => (
+                <instancedMesh
+                    key={`${src}-${meshIndex}`}
+                    ref={(node) => { meshRefs.current[meshIndex] = node; }}
+                    args={[mesh.geometry, mesh.material, instances.length]}
+                    castShadow
+                    receiveShadow
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        const obj = instances[e.instanceId];
+                        if (obj && !obj.locked) onSelect(obj.id, e.shiftKey, e.ctrlKey || e.metaKey);
+                    }}
+                />
+            ))}
+        </group>
+    );
+};
+
+const InstancedModelRenderer = ({ objects, selectedIds, onSelect }) => {
+    const groups = useMemo(() => {
+        const grouped = new Map();
+        objects.forEach((obj) => {
+            if (!obj.modelUrl || obj.locked || selectedIds.includes(obj.id)) return;
+            if (obj.autoFitToSLAM !== false) return;
+            if (!(obj.type === 'custom_model' || obj.type === 'cnc')) return;
+            const key = `${obj.modelUrl}|${obj.modelScale || 1}|${obj.autoFitToSLAM !== false}`;
+            if (!grouped.has(key)) grouped.set(key, { src: obj.modelUrl, instances: [] });
+            grouped.get(key).instances.push(obj);
+        });
+        return Array.from(grouped.values()).filter(group => group.instances.length > 1);
+    }, [objects, selectedIds]);
+
+    return (
+        <>
+            {groups.map(group => (
+                <Suspense key={group.src} fallback={null}>
+                    <InstancedGltfGroup src={group.src} instances={group.instances} onSelect={onSelect} />
+                </Suspense>
+            ))}
+        </>
+    );
 };
 
 // 递归渲染层级列表项组件
@@ -141,7 +249,7 @@ const LayerItem = ({
 
                 <div className="min-w-[16px] flex justify-center">
                     {obj.isBaseMap ? (
-                        <Map size={12} className="text-blue-400" />
+                        <MapIcon size={12} className="text-blue-400" />
                     ) : isGroup ? (
                         <Layers size={12} className="text-purple-400" />
                     ) : obj.type.includes('wall') ? (
@@ -272,30 +380,35 @@ const PathRenderer = ({ path, objects, isSelected }) => {
 // Base Map Renderer (SLAM Map)
 const BaseMapRenderer = ({ baseMap, dimmed }) => {
     const [texture, setTexture] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (baseMap.textureUrl) {
-            const loader = new THREE.TextureLoader();
-            loader.load(
-                baseMap.textureUrl,
-                (loadedTexture) => {
-                    loadedTexture.anisotropy = 16; // Improve texture quality
-                    loadedTexture.wrapS = THREE.ClampToEdgeWrapping;
-                    loadedTexture.wrapT = THREE.ClampToEdgeWrapping;
-                    setTexture(loadedTexture);
-                },
-                undefined,
-                (error) => {
-                    console.error('Error loading SLAM texture:', error);
-                }
-            );
-        }
-    }, [baseMap.textureUrl]);
+        setLoading(true);
+        const url = baseMap.textureUrl || baseMap.imageData;
+        if (!url) { setLoading(false); return; }
+        const finalUrl = url.startsWith('data:') ? url : (url.startsWith('http') ? url : `data:image/png;base64,${url}`);
+        const loader = new THREE.TextureLoader();
+        loader.load(
+            finalUrl,
+            (loadedTexture) => {
+                loadedTexture.anisotropy = 16;
+                loadedTexture.wrapS = THREE.ClampToEdgeWrapping;
+                loadedTexture.wrapT = THREE.ClampToEdgeWrapping;
+                setTexture(loadedTexture);
+                setLoading(false);
+            },
+            undefined,
+            () => { setLoading(false); }
+        );
+    }, [baseMap.textureUrl, baseMap.imageData]);
+
+    // Don't render if still loading and no texture yet (prevents white flash)
+    if (loading && !texture) return null;
 
     return (
         <mesh
             position={baseMap.position}
-            rotation={[-Math.PI / 2, 0, 0]} // Rotate to lie flat
+            rotation={[-Math.PI / 2, 0, 0]}
             receiveShadow
         >
             <planeGeometry args={[baseMap.scale[0], baseMap.scale[1]]} />
@@ -364,7 +477,7 @@ const OverlayImageRenderer = ({ overlayData, baseMapScale, offset = [0, 0], cust
 const ContinuousCurveMesh = ({ points, thickness = 0.2, height = 3, tension = 0.5, closed = false, color, opacity, isSelected, hovered }) => {
     const geometry = useMemo(() => createContinuousCurveGeometry(points, thickness, height, tension, closed), [points, thickness, height, tension, closed]);
     if (!geometry) return null;
-    return (<mesh geometry={geometry} castShadow receiveShadow><meshStandardMaterial color={color} roughness={0.5} metalness={0.1} transparent={opacity < 1} opacity={opacity} emissive={isSelected ? '#444' : (hovered ? '#222' : '#000')} side={THREE.DoubleSide} />{(isSelected || hovered) && <Edges threshold={20} scale={1} color={isSelected ? "#60a5fa" : "#ffffff"} geometry={geometry} />}</mesh>);
+    return (<mesh geometry={geometry} castShadow receiveShadow><meshStandardMaterial color={color} roughness={0.5} metalness={0.1} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 1} emissive={isSelected ? '#444' : (hovered ? '#222' : '#000')} side={THREE.DoubleSide} />{(isSelected || hovered) && <Edges threshold={20} scale={1} color={isSelected ? "#60a5fa" : "#ffffff"} geometry={geometry} />}</mesh>);
 };
 const PolygonFloorMesh = ({ points, color, opacity, isSelected, hovered }) => {
     const geometry = useMemo(() => {
@@ -377,7 +490,7 @@ const PolygonFloorMesh = ({ points, color, opacity, isSelected, hovered }) => {
         geom.rotateX(Math.PI / 2);
         return geom;
     }, [points]);
-    return (<mesh geometry={geometry} receiveShadow><meshStandardMaterial color={color} roughness={0.8} metalness={0.1} transparent={opacity < 1} opacity={opacity} emissive={isSelected ? '#444' : (hovered ? '#222' : '#000')} side={THREE.DoubleSide} />{(isSelected || hovered) && <Edges threshold={20} scale={1} color={isSelected ? "#60a5fa" : "#ffffff"} geometry={geometry} />}</mesh>);
+    return (<mesh geometry={geometry} receiveShadow><meshStandardMaterial color={color} roughness={0.8} metalness={0.1} transparent={opacity < 1} opacity={opacity} depthWrite={opacity >= 1} emissive={isSelected ? '#444' : (hovered ? '#222' : '#000')} side={THREE.DoubleSide} />{(isSelected || hovered) && <Edges threshold={20} scale={1} color={isSelected ? "#60a5fa" : "#ffffff"} geometry={geometry} />}</mesh>);
 };
 const PreviewWall = ({ start, end }) => {
     const { pos, rot, len } = useMemo(() => {
@@ -1358,7 +1471,7 @@ const MapImage = ({ data, isSelected, onSelect, dimmed }) => {
                 onClick={(e) => { e.stopPropagation(); if (!data.locked) onSelect(data.id, e.shiftKey, e.ctrlKey || e.metaKey); }}
             >
                 <planeGeometry args={[mapWidth, mapHeight]} />
-                <meshBasicMaterial color="#334155" transparent opacity={0.5} side={THREE.DoubleSide} />
+                <meshBasicMaterial color="#334155" transparent opacity={0.5} side={THREE.DoubleSide} depthWrite={false} />
             </mesh>
         );
     }
@@ -1387,6 +1500,7 @@ const MapImage = ({ data, isSelected, onSelect, dimmed }) => {
                 transparent
                 opacity={finalOpacity}
                 side={THREE.DoubleSide}
+                depthWrite={false}
             />
         </mesh>
     );
@@ -1958,7 +2072,7 @@ const SceneObject = ({ data, baseMapData, isSelected, isEditingPoints, onSelect,
             <group ref={groupRef} name={data.id} position={data.position} rotation={data.rotation} scale={data.locked ? [1, 1, 1] : data.scale} onClick={(e) => { e.stopPropagation(); if (!(data.type === 'custom_model' && data.locked)) { onSelect(data.id, e.shiftKey, e.ctrlKey || e.metaKey); } }} onDoubleClick={(e) => { e.stopPropagation(); if (!(data.type === 'custom_model' && data.locked) && onToggleEdit) { onToggleEdit(data.id); } }} onPointerOver={(e) => { e.stopPropagation(); if (!(data.type === 'custom_model' && data.locked) && !isSelected) { setHovered(true); } }} onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}>
                 {data.type === 'curved_wall' ? (<><ContinuousCurveMesh points={data.points} thickness={data.thickness || 0.2} height={data.height || 3} tension={data.tension !== undefined ? data.tension : 0.5} closed={data.closed} color={data.color} opacity={data.opacity || 1} isSelected={isSelected} hovered={hovered && !isSelected} />{isSelected && isEditingPoints && (<CurveEditor points={data.points} onUpdatePoint={(idx, newPos) => { const newPoints = [...data.points]; newPoints[idx] = newPos; onUpdatePoints(data.id, newPoints, false); }} onDragEnd={() => { onUpdatePoints(data.id, data.points, true); }} onAddPoint={(newPoint) => { const newPoints = [...data.points, newPoint]; onUpdatePoints(data.id, newPoints, true); }} />)}</>) : data.type === 'polygon_floor' ? (<><PolygonFloorMesh points={data.points} color={data.color} opacity={data.opacity || 1} isSelected={isSelected} hovered={hovered && !isSelected} />{isSelected && isEditingPoints && (<CurveEditor points={data.points} onUpdatePoint={(idx, newPos) => { const newPoints = [...data.points]; newPoints[idx] = newPos; onUpdatePoints(data.id, newPoints, false); }} onDragEnd={() => { onUpdatePoints(data.id, newPoints, true); }} onAddPoint={(newPoint) => { const newPoints = [...data.points, newPoint]; onUpdatePoints(data.id, newPoints, true); }} />)}</>) : (
                     <React.Fragment>
-                        {data.modelUrl ? (<Suspense fallback={<mesh><boxGeometry args={[1, 1, 1]} /><meshBasicMaterial color="gray" wireframe /></mesh>}>{((slamMapWidth && slamMapHeight && shouldAutoFit) ? <AutoScaledGltf key={data.modelUrl} src={data.modelUrl} targetWidth={slamMapWidth} targetHeight={slamMapHeight} autoScale={true} castShadow receiveShadow /> : <Gltf key={data.modelUrl} src={data.modelUrl} castShadow receiveShadow scale={data.modelScale || 1} />)}{(isSelected || hovered) && !(data.type === 'custom_model' && data.locked) && <mesh><boxGeometry args={[1.05, 1.05, 1.05]} /><meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.3} /></mesh>}</Suspense>) : (<mesh castShadow receiveShadow>{(data.type === 'wall' || data.type === 'floor' || data.type === 'column' || data.type === 'door' || data.type === 'cnc' || data.type === 'cube' || data.type === 'custom_model') && (<boxGeometry args={[1, 1, 1]} />)}<meshStandardMaterial color={data.color} roughness={0.5} metalness={0.1} opacity={data.opacity || 1} transparent={(data.opacity || 1) < 1} emissive={!isFloorType && isSelected ? '#444' : (!isFloorType && hovered ? '#222' : '#000')} />{(isSelected || hovered) && (data.type === 'wall' || data.type === 'floor' || data.type === 'column' || data.type === 'door' || data.type === 'cnc' || data.type === 'cube' || data.type === 'custom_model') && <Edges threshold={15} scale={1.001} color={isSelected ? "#60a5fa" : "#ffffff"} />}</mesh>)}
+                        {data.modelUrl ? (<Suspense fallback={<mesh><boxGeometry args={[1, 1, 1]} /><meshBasicMaterial color="gray" wireframe /></mesh>}>{((slamMapWidth && slamMapHeight && shouldAutoFit) ? <AutoScaledGltf key={data.modelUrl} src={data.modelUrl} targetWidth={slamMapWidth} targetHeight={slamMapHeight} autoScale={true} castShadow receiveShadow /> : <Gltf key={data.modelUrl} src={data.modelUrl} castShadow receiveShadow scale={data.modelScale || 1} />)}{(isSelected || hovered) && !(data.type === 'custom_model' && data.locked) && <mesh><boxGeometry args={[1.05, 1.05, 1.05]} /><meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.3} /></mesh>}</Suspense>) : (<mesh castShadow receiveShadow>{(data.type === 'wall' || data.type === 'floor' || data.type === 'column' || data.type === 'door' || data.type === 'cnc' || data.type === 'cube' || data.type === 'custom_model') && (<boxGeometry args={[1, 1, 1]} />)}<meshStandardMaterial color={data.color} roughness={0.5} metalness={0.1} opacity={data.opacity || 1} transparent={(data.opacity || 1) < 1} depthWrite={(data.opacity || 1) >= 1} emissive={!isFloorType && isSelected ? '#444' : (!isFloorType && hovered ? '#222' : '#000')} />{(isSelected || hovered) && (data.type === 'wall' || data.type === 'floor' || data.type === 'column' || data.type === 'door' || data.type === 'cnc' || data.type === 'cube' || data.type === 'custom_model') && <Edges threshold={15} scale={1.001} color={isSelected ? "#60a5fa" : "#ffffff"} />}</mesh>)}
                     </React.Fragment>
                 )}
                 {isSelected && !data.hideLabel && !(data.type === 'custom_model' && data.locked) && cameraView === 'perspective' && (
@@ -3095,6 +3209,7 @@ const App = () => {
 
     // 🔄 场景导出相关状态
     const [showExportPanel, setShowExportPanel] = useState(false);
+    const [importMode, setImportMode] = useState('currentFloor'); // 'global' | 'currentFloor'
     const [exportOptions, setExportOptions] = useState({
         roadNetwork: true,      // 路网（路径+点位）
         waypoints: true,         // 地图点位
@@ -3113,17 +3228,65 @@ const App = () => {
         const params = new URLSearchParams(window.location.search);
         return params.get('id') || '';
     });
+    // 🔗 当前方案 ID 和名称（URL 参数 ?project=xxx&name=xxx）
+    const [currentProjectId, setCurrentProjectId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('project') || '';
+    });
+    const [currentProjectName, setCurrentProjectName] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('name') || '未命名方案';
+    });
     const [currentPage, setCurrentPage] = useState(() => {
         const params = new URLSearchParams(window.location.search);
-        return params.get('id') ? 'editor' : 'home';
+        const id = params.get('id');
+        const project = params.get('project');
+        if (id && project) return 'editor';
+        if (id) return 'projects';
+        return 'home';
     });
 
     const handleEnterWorkspace = (id) => {
         setWorkspaceId(id);
-        setCurrentPage('editor');
+        setCurrentPage('projects');
         if (id) {
             const url = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(id)}`;
             window.history.pushState({}, '', url);
+        }
+    };
+
+    const handleOpenProject = (workspaceId, projectName, projectId) => {
+        const pid = projectId || 'proj-' + Math.random().toString(36).slice(2, 10);
+        setCurrentProjectId(pid);
+        setCurrentProjectName(projectName || '未命名方案');
+        setCurrentPage('editor');
+        if (projectId) {
+            const cached = localStorage.getItem('dt-project-' + pid);
+            if (cached) {
+                try {
+                    const data = inflateCompactScenePayload(JSON.parse(cached));
+                    if (data.objects) { setObjects(data.objects); commitHistory(data.objects); }
+                    if (data.floors) setFloors(data.floors);
+                } catch(e) {}
+            }
+        } else {
+            // 新建方案：彻底清空
+            setObjects([]);
+            commitHistory([]);
+            setSelectedId(null);
+            setSelectedIds([]);
+            setFloors([{ id: 'default', name: '默认场景', isDefault: true, floorLevels: [{ id: 'floor-1', name: '1F', height: 0, visible: true, objects: [] }] }]);
+            // 清除可能残留的全局缓存
+            try { localStorage.removeItem('digital-twin-pro-data'); } catch(e) {}
+        }
+        const url = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(workspaceId)}&project=${encodeURIComponent(pid)}&name=${encodeURIComponent(projectName || '')}`;
+        window.history.pushState({}, '', url);
+    };
+
+    const handleBackToProjects = () => {
+        setCurrentPage('projects');
+        if (workspaceId) {
+            window.history.pushState({}, '', `${window.location.pathname}?id=${encodeURIComponent(workspaceId)}`);
         }
     };
 
@@ -3168,6 +3331,8 @@ const App = () => {
             }
         ];
     });
+
+
     const [currentFloorId, setCurrentFloorId] = useState(() => {
         const saved = loadFromLocalStorage();
         return saved?.currentFloorId || 'default';
@@ -3177,62 +3342,93 @@ const App = () => {
         return saved?.currentFloorLevelId || 'floor-1';
     }); // 当前楼层ID
 
-    // 🔗 工作区：从 URL 加载场景
+    // 🔗 加载方案：localStorage 秒开，Supabase 仅备份不同步加载
     useEffect(() => {
-        if (!workspaceId) return;
-        const loadWorkspace = async () => {
-            try {
-                console.log('🔗 加载工作区:', workspaceId);
-                const shared = await getSharedScene(workspaceId);
-                if (shared?.scene_data) {
-                    const data = shared.scene_data;
-                    if (data.objects?.length > 0) {
-                        setObjects(data.objects);
-                        commitHistory(data.objects);
-                    }
+        if (!workspaceId || !currentProjectId) return; // 新建项目跳过，保持空场景
+        try {
+            const cached = localStorage.getItem('dt-project-' + currentProjectId);
+            if (cached) {
+                const data = inflateCompactScenePayload(JSON.parse(cached));
+                if (data.objects?.length > 0) {
+                    setObjects(data.objects);
+                    commitHistory(data.objects);
                     if (data.floors) setFloors(data.floors);
                     if (data.lightingConfig) setLightingConfig(prev => ({ ...prev, ...data.lightingConfig }));
                     setSyncStatus('synced');
                     setLastSyncTime(new Date());
-                    console.log('🔗 工作区加载完成:', data.objects?.length, '个对象');
+                    console.log('⚡ localStorage 秒开:', data.objects.length, '个对象');
+                    return;
                 }
-            } catch (err) {
-                console.warn('🔗 工作区加载失败:', err.message);
             }
-        };
-        const timer = setTimeout(loadWorkspace, 500);
+        } catch(e) {}
+        // localStorage 无数据：尝试 Supabase 恢复
+        const timer = setTimeout(async () => {
+            try {
+                if (!currentProjectId) return; // 新建项目跳过
+                let data = null;
+                if (currentProjectId) {
+                    const proj = await getProject(currentProjectId);
+                    if (proj?.scene_data) data = proj.scene_data;
+                }
+                if (!data) {
+                    const projects = await listProjects(workspaceId);
+                    if (projects?.length > 0) {
+                        const proj = await getProject(projects[0].id);
+                        if (proj?.scene_data) data = proj.scene_data;
+                        if (!currentProjectId) { setCurrentProjectId(projects[0].id); setCurrentProjectName(projects[0].project_name || '未命名'); }
+                    }
+                }
+                const restoredData = inflateCompactScenePayload(data);
+                if (restoredData?.objects?.length > 0) {
+                    setObjects(restoredData.objects);
+                    commitHistory(restoredData.objects);
+                    if (restoredData.floors) setFloors(restoredData.floors);
+                    if (restoredData.currentFloorId) setCurrentFloorId(restoredData.currentFloorId);
+                    if (restoredData.currentFloorLevelId) setCurrentFloorLevelId(restoredData.currentFloorLevelId);
+                    if (restoredData.lightingConfig) setLightingConfig(prev => ({ ...prev, ...restoredData.lightingConfig }));
+                    setSyncStatus('synced');
+                    setLastSyncTime(new Date());
+                }
+            } catch (err) { console.warn('⚠️ Supabase 加载失败，使用空场景'); }
+        }, 500);
         return () => clearTimeout(timer);
     }, [workspaceId]);
 
-    // 🔗 工作区：场景变化时自动保存（防抖 5 秒）
+    // 🔗 自动保存：localStorage（完整快）+ Supabase（轻量备份）
     useEffect(() => {
         if (!workspaceId || objects.length === 0) return;
+        // 1. 立即保存完整数据到 localStorage
+        try {
+            localStorage.setItem('dt-project-' + (currentProjectId || workspaceId), JSON.stringify({ objects, floors, currentFloorId, currentFloorLevelId, lightingConfig, timestamp: new Date().toISOString() }));
+        } catch(e) {}
+        // 2. 延迟保存轻量数据到 Supabase
         const timer = setTimeout(async () => {
             try {
                 setSyncStatus('syncing');
-                const cleanObjects = objects.map(o => ({
-                    ...o,
-                    modelUrl: o.modelUrl?.startsWith?.('http') ? o.modelUrl : null,
-                    imageData: o.imageData?.startsWith?.('http') ? o.imageData : null
-                }));
-                const sceneData = {
-                    objects: cleanObjects,
+                const sceneData = createCompactScenePayload({
+                    objects,
                     floors,
                     currentFloorId,
                     currentFloorLevelId,
                     lightingConfig,
-                    timestamp: new Date().toISOString()
-                };
-                await saveSharedScene(workspaceId, sceneData, currentScene?.name || '未命名');
+                    currentScene: floors.find(f => f.id === currentFloorId),
+                    currentProjectId,
+                    currentProjectName,
+                    metadata: { savedTo: 'supabase-auto' }
+                });
+                const pid = currentProjectId || 'proj-' + Math.random().toString(36).slice(2, 10);
+                if (!currentProjectId) setCurrentProjectId(pid);
+                await saveProject(workspaceId, currentProjectName || currentScene?.name || '未命名', sceneData, pid);
                 setSyncStatus('synced');
                 setLastSyncTime(new Date());
+                console.log('☁️ 方案已自动保存:', pid);
             } catch (err) {
-                console.warn('🔗 工作区保存失败:', err.message);
+                console.warn('☁️ 自动保存失败:', err.message);
                 setSyncStatus('error');
             }
         }, 5000);
         return () => clearTimeout(timer);
-    }, [objects, floors, workspaceId]);
+    }, [objects, floors, workspaceId, currentProjectId, currentProjectName, currentFloorId, currentFloorLevelId, lightingConfig]);
     const [showFloorManager, setShowFloorManager] = useState(false);
     const [editingFloor, setEditingFloor] = useState(null);
     const [editingFloorLevelId, setEditingFloorLevelId] = useState(null); // 正在编辑地图的楼层ID
@@ -3353,6 +3549,59 @@ const App = () => {
         console.log(`✅ 楼层切换完成: ${newFloorLevel?.name}`);
     }, [currentFloorLevelId, currentFloorLevel, currentScene]);
 
+    const openFloorJsonUpload = useCallback((floorLevelId) => {
+        setJsonUploadMode('replace');
+        switchFloorLevel(floorLevelId);
+        window.setTimeout(() => {
+            const input = document.getElementById('floor-json-upload');
+            if (!input) return;
+            input.value = '';
+            input.click();
+        }, 0);
+    }, [switchFloorLevel]);
+
+    const clearFloorMapData = useCallback((floorLevelId) => {
+        const floorToClear = currentScene?.floorLevels?.find(fl => fl.id === floorLevelId);
+        if (!floorToClear) return;
+
+        const objectIdsToClear = new Set((floorToClear.objects || []).map(obj => obj.id));
+        setFloors(prev => prev.map(scene => {
+            if (scene.id !== currentFloorId) return scene;
+
+            return {
+                ...scene,
+                floorLevels: scene.floorLevels.map(fl =>
+                    fl.id === floorLevelId
+                        ? {
+                            ...fl,
+                            waypointsData: null,
+                            pathsData: null,
+                            objects: [],
+                            baseMapData: null,
+                            showBaseMap: true
+                        }
+                        : fl
+                )
+            };
+        }));
+
+        setObjects(prev => prev.filter(obj => {
+            if (objectIdsToClear.has(obj.id)) return false;
+            if (obj._floorLevelId === floorLevelId) return false;
+            if (obj.floorLevel === floorToClear.name) return false;
+
+            const isLegacyCurrentFloorMapObject = floorLevelId === currentFloorLevelId &&
+                !obj.floorLevel &&
+                (obj.isBaseMap || obj.type === 'map_image' || obj.type === 'waypoint' || obj.type === 'path_line' || obj.type === 'group');
+            return !isLegacyCurrentFloorMapObject;
+        }));
+
+        if (floorLevelId === currentFloorLevelId) {
+            setSelectedId(null);
+            setSelectedIds([]);
+        }
+    }, [currentScene, currentFloorId, currentFloorLevelId]);
+
     // 楼层管理函数
     const addFloorLevel = useCallback((name = null) => {
         const floorNumber = currentScene.floorLevels.length + 1;
@@ -3452,7 +3701,7 @@ const App = () => {
     }, [currentFloorId]);
 
     // 保存场景函数
-    const saveCurrentScene = useCallback(() => {
+    const saveCurrentScene = useCallback(async () => {
         // 更新当前场景的对象数据
         const updatedFloors = floors.map(f => {
             if (f.id === currentFloorId) {
@@ -3469,9 +3718,33 @@ const App = () => {
         setLastSavedState(JSON.stringify({ floors: updatedFloors, objects }));
         setHasUnsavedChanges(false);
 
+        // ☁️ 同步到 Supabase projects 表（记录 workspace_id）
+        if (workspaceId && currentProjectId) {
+            try {
+                const sceneData = createCompactScenePayload({
+                    objects,
+                    floors: updatedFloors,
+                    currentFloorId,
+                    currentFloorLevelId,
+                    lightingConfig,
+                    currentScene,
+                    currentProjectId,
+                    currentProjectName,
+                    metadata: { savedTo: 'supabase-manual' }
+                });
+                await saveProject(workspaceId, currentProjectName, sceneData, currentProjectId);
+                setSyncStatus('synced');
+                setLastSyncTime(new Date());
+                console.log('☁️ 方案已保存到 Supabase:', currentProjectId);
+            } catch (err) {
+                console.warn('☁️ 方案保存失败:', err.message);
+                setSyncStatus('error');
+            }
+        }
+
         console.log('💾 场景已保存:', currentScene?.name);
-        alert(`✅ 场景 "${currentScene?.name}" 已保存`);
-    }, [floors, currentFloorId, objects, currentScene]);
+        alert(`✅ 方案 "${currentProjectName || currentScene?.name}" 已保存`);
+    }, [floors, currentFloorId, objects, currentScene, workspaceId, currentProjectId, currentProjectName, currentFloorLevelId, lightingConfig]);
 
     // 保存并退出
     const saveAndExit = useCallback(() => {
@@ -3768,7 +4041,7 @@ const App = () => {
             const sceneIsClean = isSceneClean(objects);
 
             // 3. 检查是否有路网绑定的实体（判断是否为更新操作）
-            const hasNetworkEntities = objects.some(o => o.sourceRefId && o.type === 'waypoint');
+            const hasNetworkEntities = false; // Allow re-import of same JSON
 
             // --- 场景 A: 新建场景（默认场景或创建新场景） ---
             if (isNewScene) {
@@ -4157,6 +4430,15 @@ const App = () => {
         const currentFloor = floor.floorLevels?.find(fl => fl.id === currentFloorLevelId);
         if (!currentFloor) return;
 
+        // 🔧 修复：只保存属于当前楼层的对象（过滤掉其他楼层的对象）
+        const currentFloorName = currentFloorLevel?.name;
+        const floorObjects = objects.filter(obj => {
+            // 没有楼层标记的对象（如底图）归属当前楼层
+            if (!obj.floorLevel) return true;
+            // 只保留楼层标记匹配当前楼层的对象
+            return obj.floorLevel === currentFloorName;
+        });
+
         // 更新当前楼层的对象数据
         const updatedFloors = floors.map(scene => {
             if (scene.id === currentFloorId) {
@@ -4166,7 +4448,7 @@ const App = () => {
                         if (fl.id === currentFloorLevelId) {
                             return {
                                 ...fl,
-                                objects: objects
+                                objects: floorObjects
                             };
                         }
                         return fl;
@@ -4177,8 +4459,8 @@ const App = () => {
         });
 
         // 只在对象真正变化时更新
-        if (JSON.stringify(currentFloor.objects) !== JSON.stringify(objects)) {
-            console.log('💾 自动保存楼层数据:', currentFloorLevel?.name, '对象数量:', objects.length);
+        if (JSON.stringify(currentFloor.objects) !== JSON.stringify(floorObjects)) {
+            console.log('💾 自动保存楼层数据:', currentFloorName, '对象数量:', floorObjects.length, '(总objects:', objects.length, ')');
             setFloors(updatedFloors);
         }
     }, [objects, currentFloorId, currentFloorLevelId]); // 当对象或楼层ID变化时执行
@@ -4990,152 +5272,35 @@ const App = () => {
     // 场景导出功能
     const handleExportScene = () => {
         try {
-            const exportData = {
-                version: '2.1',
-                exportTime: new Date().toISOString(),
-                sceneName: currentScene?.name || '未命名场景',
-                sceneId: currentScene?.id || 'default',
-                activeFloor: currentFloorLevel?.name || '1F',
-            };
+            const exportObjectIds = new Set();
+            const buildingTypes = ['wall', 'wall_path', 'curved_wall', 'door', 'column', 'floor', 'polygon_floor', 'cube', 'cnc', 'device'];
 
-            // 🔹 1. 路网数据（路径+点位）
-            if (exportOptions.roadNetwork) {
-                const waypoints = objects.filter(o => o.type === 'waypoint').map(w => ({
-                    id: w.id,
-                    name: w.name,
-                    position: w.position,
-                    rotation: w.rotation,
-                    sourceRefId: w.sourceRefId,
-                    floorLevel: w.floorLevel,
-                    poseData: w.poseData,  // 原始ROS点位数据
-                    visualConfig: w.visualConfig
-                }));
+            objects.forEach(obj => {
+                if (exportOptions.roadNetwork && (obj.type === 'waypoint' || obj.type === 'path_line')) exportObjectIds.add(obj.id);
+                if (exportOptions.waypoints && obj.type === 'waypoint' && obj.poseData) exportObjectIds.add(obj.id);
+                if (exportOptions.models3D && (obj.type === 'custom_model' || (obj.modelUrl && obj.type !== 'waypoint'))) exportObjectIds.add(obj.id);
+                if (exportOptions.baseMap && (obj.isBaseMap || obj.type === 'map_image')) exportObjectIds.add(obj.id);
+                if (exportOptions.buildingObjects && buildingTypes.includes(obj.type)) exportObjectIds.add(obj.id);
+            });
 
-                const paths = objects.filter(o => o.type === 'path_line').map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    points: p.points,
-                    sourceRefId: p.sourceRefId,
-                    pathData: p.pathData,
-                    color: p.color,
-                    opacity: p.opacity
-                }));
-
-                exportData.roadNetwork = {
-                    waypoints,
-                    paths,
-                    totalWaypoints: waypoints.length,
-                    totalPaths: paths.length
-                };
-            }
-
-            // 🔹 2. 地图点位（含pose元数据）
-            if (exportOptions.waypoints) {
-                const mapWaypoints = objects
-                    .filter(o => o.type === 'waypoint' && o.poseData)
-                    .map(w => ({
-                        id: w.id,
-                        name: w.name,
-                        position: w.position,       // Three.js坐标
-                        poseData: w.poseData,       // 原始ROS pose（含x, y, yaw等）
-                        floorLevel: w.floorLevel,
-                        mapFileId: w.mapFileId
-                    }));
-
-                exportData.mapWaypoints = {
-                    waypoints: mapWaypoints,
-                    total: mapWaypoints.length
-                };
-            }
-
-            // 🔹 3. 3D模型文件引用
-            if (exportOptions.models3D) {
-                const models3D = objects
-                    .filter(o => o.type === 'custom_model' || (o.modelUrl && o.type !== 'waypoint'))
-                    .map(m => ({
-                        id: m.id,
-                        name: m.name,
-                        type: m.type,
-                        modelUrl: m.modelUrl,        // GLB/GLTF URL
-                        modelScale: m.modelScale,
-                        autoFitToSLAM: m.autoFitToSLAM,
-                        position: m.position,
-                        rotation: m.rotation,
-                        scale: m.scale,
-                        assetId: m.assetId,
-                        locked: m.locked
-                    }));
-
-                exportData.models3D = {
-                    models: models3D,
-                    total: models3D.length,
-                    note: 'modelUrl为GLB/GLTF文件引用地址，需确保导入时URL可访问'
-                };
-            }
-
-            // 🔹 4. SLAM底图（包含完整图片数据）
-            if (exportOptions.baseMap) {
-                const baseMaps = objects.filter(o => o.isBaseMap || o.type === 'map_image').map(b => ({
-                    id: b.id,
-                    name: b.name,
-                    scale: b.scale,
-                    mapMetadata: b.mapMetadata,
-                    position: b.position,
-                    opacity: b.opacity,
-                    imageData: b.imageData || null  // 🔑 保留完整数据
-                }));
-
-                exportData.baseMaps = {
-                    maps: baseMaps,
-                    total: baseMaps.length,
-                    note: baseMaps.some(m => m.imageData?.startsWith?.('data:'))
-                        ? '⚠️ 底图含base64图片，JSON文件可能较大'
-                        : '底图使用URL引用'
-                };
-            }
-
-            // 🔹 5. 建筑物对象（墙、门、柱、地面等）
-            if (exportOptions.buildingObjects) {
-                const buildingTypes = ['wall', 'wall_path', 'curved_wall', 'door', 'column', 'floor', 'polygon_floor', 'cube', 'cnc', 'device'];
-                const buildings = objects
-                    .filter(o => buildingTypes.includes(o.type))
-                    .map(b => ({
-                        id: b.id,
-                        name: b.name,
-                        type: b.type,
-                        position: b.position,
-                        rotation: b.rotation,
-                        scale: b.scale,
-                        color: b.color,
-                        opacity: b.opacity,
-                        visible: b.visible,
-                        locked: b.locked,
-                        points: b.points,          // 曲线墙/地面的顶点数据
-                        thickness: b.thickness,
-                        height: b.height,
-                        tension: b.tension,
-                        closed: b.closed,
-                        modelUrl: b.modelUrl,      // CNC等特殊模型
-                        modelScale: b.modelScale
-                    }));
-
-                exportData.buildingObjects = {
-                    objects: buildings,
-                    total: buildings.length
-                };
-            }
-
-            // 🔹 6. 场景元数据
-            exportData.lighting = lightingConfig;
-            exportData.cameraSettings = {
-                viewMode,
-                cameraView,
-                cameraZoom
-            };
-            exportData.gridSettings = {
-                enableSnap,
-                gridSize
-            };
+            const objectsToExport = objects.filter(obj => exportObjectIds.has(obj.id));
+            const exportData = createCompactScenePayload({
+                objects: objectsToExport,
+                floors,
+                currentFloorId,
+                currentFloorLevelId,
+                lightingConfig,
+                currentScene,
+                currentProjectId,
+                currentProjectName,
+                metadata: {
+                    exportedFrom: 'scene-export',
+                    exportOptions,
+                    cameraSettings: { viewMode, cameraView, cameraZoom },
+                    gridSettings: { enableSnap, gridSize },
+                    note: '重复模型已导出为 modelAssets + modelAssetRef 实例引用；base64 模型和底图数据会被过滤，需使用可访问 URL 或重新上传资产。'
+                }
+            });
 
             // 生成JSON字符串
             const jsonStr = exportOptions.prettyPrint
@@ -5156,9 +5321,9 @@ const App = () => {
 
             console.log('✅ 场景导出成功！', {
                 sceneName: exportData.sceneName,
-                roadNetwork: exportOptions.roadNetwork ? `${exportData.roadNetwork?.totalWaypoints}个点位, ${exportData.roadNetwork?.totalPaths}条路径` : '未导出',
-                models3D: exportOptions.models3D ? `${exportData.models3D?.total}个模型` : '未导出',
-                buildingObjects: exportOptions.buildingObjects ? `${exportData.buildingObjects?.total}个建筑` : '未导出'
+                objects: `${exportData.metadata.objectCount} 个对象`,
+                modelAssets: `${exportData.metadata.modelAssetCount} 个模型资源`,
+                modelInstances: `${exportData.metadata.modelInstanceCount} 个模型实例`
             });
 
             setShowExportPanel(false);
@@ -5435,8 +5600,8 @@ const App = () => {
     };
 
     // 从JSON加载地图数据 - 加载到当前楼层
-    // mode: 'replace' (默认,替换所有内容) | 'append' (追加,保留现有内容)
-    const loadMapFromJSON = (jsonData, mode = 'replace') => {
+    // mode: 'append' (默认,追加到当前楼层) | 'replace' (替换当前楼层内容)
+    const loadMapFromJSON = (jsonData, mode = 'append') => {
         console.log('🚀 ========== 开始加载地图数据到当前楼层 ==========');
         console.log('📋 加载模式:', mode);
         console.log('📋 当前场景:', currentScene?.name);
@@ -5471,6 +5636,28 @@ const App = () => {
             return;
         }
 
+        const targetFloorName = currentFloorLevel.name || '1F';
+        const targetFloorLevelId = currentFloorLevelId || currentFloorLevel.id || 'floor-1';
+
+        // 🔑 追加模式：移除当前楼层所有旧底图，防止叠层
+        if (mode === 'append') {
+            setObjects(prev => prev.filter(o => !o.isBaseMap));
+            setFloors(prev => prev.map(scene => {
+                if (scene.id === currentFloorId) {
+                    return { ...scene, floorLevels: scene.floorLevels.map(floor => {
+                        if (floor.id === currentFloorLevelId) {
+                            return { ...floor, objects: (floor.objects || []).filter(o => !o.isBaseMap) };
+                        }
+                        return floor;
+                    })};
+                }
+                return scene;
+            }));
+        }
+
+        const importSessionId = uuidv4();
+        const makeImportId = (prefix, sourceId = 'item') => `${prefix}_${sourceId}_${targetFloorLevelId}_${importSessionId}`;
+
         // 处理新格式
         if (formatType === 'new') {
             console.log('🆕 使用新格式加载地图');
@@ -5493,7 +5680,7 @@ const App = () => {
             console.log('📍 底图居中在世界坐标 (0, 0, 0)');
 
             const baseMapObj = {
-                id: `map_${jsonData.id}`,
+                id: makeImportId('map', jsonData.id || 'new'),
                 type: 'map_image',
                 name: jsonData.name || '地图底图',
                 position: [0, 0.1, 0], // 🔑 Y=0.1，稍微高于地面
@@ -5504,6 +5691,8 @@ const App = () => {
                 visible: true,
                 locked: true,
                 isBaseMap: true,
+                floorLevel: targetFloorName,
+                _floorLevelId: targetFloorLevelId,
                 imageData: imageUrl, // 使用URL而不是base64
                 mapMetadata: jsonData
             };
@@ -5628,17 +5817,19 @@ const App = () => {
 
             // 创建底图对象 - 使用 map_image 类型以便渲染
             const baseMapObj = {
-                id: `smap_${Date.now()}`,
+                id: makeImportId('smap', header.mapName || 'map'),
                 type: 'map_image', // 🔑 改为 map_image 以支持纹理渲染
                 name: header.mapName || 'SMAP地图',
                 position: [0, 0.05, 0], // 稍微高于地面
                 rotation: [0, 0, 0],
-                scale: [mapWidth, mapHeight, 1], // 🔑 修复: MapImage用scale[0]宽度, scale[1]高度
+                scale: [mapWidth, 1, mapHeight], // MapImage uses scale[0] width and scale[2] height
                 color: '#1a1a2e',
                 opacity: 0.9,
                 visible: true,
                 locked: true,
                 isBaseMap: true,
+                floorLevel: targetFloorName,
+                _floorLevelId: targetFloorLevelId,
                 imageData: mapImageData, // 🔑 使用生成的纹理
                 smapHeader: header
             };
@@ -5651,7 +5842,7 @@ const App = () => {
                 advancedPointList.forEach((point, index) => {
                     // 解析点位数据
                     const waypointObj = {
-                        id: `waypoint_smap_${Date.now()}_${index}`,
+                        id: makeImportId('waypoint_smap', index),
                         type: 'waypoint',
                         name: point.instanceName || `点位${index + 1}`,
                         // SMAP的y对应3D的z，减去地图中心使其居中
@@ -5661,7 +5852,8 @@ const App = () => {
                         color: point.className === 'LocationMark' ? '#4CAF50' : '#2196F3',
                         visible: true,
                         locked: false,
-                        floorLevel: currentFloorLevel?.name,
+                        floorLevel: targetFloorName,
+                        _floorLevelId: targetFloorLevelId,
                         // 保存原始SMAP数据
                         poseData: {
                             className: point.className,
@@ -5681,8 +5873,8 @@ const App = () => {
                     // 解析曲线数据 - 需要检查曲线结构
                     if (curve.startPos && curve.endPos) {
                         const pathObj = {
-                            id: `path_smap_${Date.now()}_${index}`,
-                            type: 'path',
+                            id: makeImportId('path_smap', index),
+                            type: 'path_line',
                             name: curve.instanceName || `路径${index + 1}`,
                             position: [0, 0, 0],
                             rotation: [0, 0, 0],
@@ -5690,7 +5882,8 @@ const App = () => {
                             color: '#FF9800',
                             visible: true,
                             locked: false,
-                            floorLevel: currentFloorLevel?.name,
+                            floorLevel: targetFloorName,
+                            _floorLevelId: targetFloorLevelId,
                             // 路径数据
                             startPoint: curve.startPos?.instanceName || null,
                             endPoint: curve.endPos?.instanceName || null,
@@ -5775,7 +5968,7 @@ const App = () => {
         let baseMapDataForGLB = null; // 保存底图数据供GLB使用
 
         if (jsonData.mapfileEntitys && jsonData.mapfileEntitys.length > 0) {
-            jsonData.mapfileEntitys.forEach(mapEntity => {
+            jsonData.mapfileEntitys.forEach((mapEntity, mapIndex) => {
                 const record = mapEntity.record;
                 const base64Image = mapEntity.content;
 
@@ -5792,7 +5985,7 @@ const App = () => {
                 // 🔑 底图始终居中在世界坐标原点，不受origin影响
                 // origin只用于GLB模型的对齐
                 const baseMapObj = {
-                    id: `map_${record.uid}`,
+                    id: makeImportId('map', record.uid || mapIndex),
                     type: 'map_image',
                     name: record.name || '地图底图',
                     position: [0, 0.1, 0], // Y=0.1，稍微高于地面
@@ -5803,6 +5996,9 @@ const App = () => {
                     visible: true,
                     locked: true,
                     isBaseMap: true,
+                    sourceRefId: record.uid != null ? String(record.uid) : undefined,
+                    floorLevel: targetFloorName,
+                    _floorLevelId: targetFloorLevelId,
                     imageData: `data:image/png;base64,${base64Image}`,
                     mapMetadata: record
                 };
@@ -5832,7 +6028,7 @@ const App = () => {
             jsonData.graphTopologys.forEach(topology => {
                 if (topology.poses) {
                     topology.poses.forEach(pose => {
-                        const poseId = `pose_${pose.uid}`;
+                        const poseId = makeImportId('pose', pose.uid);
                         const poseObj = {
                             id: poseId,
                             type: 'waypoint',
@@ -5843,6 +6039,10 @@ const App = () => {
                             color: pose.parkable ? '#4CAF50' : (pose.dockable ? '#2196F3' : '#FFC107'),
                             opacity: 1,
                             visible: true,
+                            sourceRefId: pose.uid != null ? String(pose.uid) : undefined,
+                            mapFileId: pose.options?.mapFileId,
+                            floorLevel: targetFloorName,
+                            _floorLevelId: targetFloorLevelId,
                             poseData: pose
                         };
 
@@ -5859,7 +6059,7 @@ const App = () => {
                         const targetPose = topology.poses.find(p => p.name === path.targetName);
 
                         if (sourcePose && targetPose) {
-                            const pathId = `path_${path.uid}`;
+                            const pathId = makeImportId('path', path.uid);
                             const pathObj = {
                                 id: pathId,
                                 type: 'path_line',
@@ -5874,6 +6074,10 @@ const App = () => {
                                 color: path.bidirectional ? '#00FF00' : '#FF9800',
                                 opacity: 0.8,
                                 visible: true,
+                                sourceRefId: path.uid != null ? String(path.uid) : undefined,
+                                mapFileId: sourcePose.options?.mapFileId || targetPose.options?.mapFileId,
+                                floorLevel: targetFloorName,
+                                _floorLevelId: targetFloorLevelId,
                                 pathData: path
                             };
 
@@ -5926,7 +6130,9 @@ const App = () => {
                 color: '#888888',
                 opacity: 1,
                 visible: true,
-                locked: false
+                locked: false,
+                floorLevel: targetFloorName,
+                _floorLevelId: targetFloorLevelId
             };
 
             // 将所有点位和路径设置为组的子对象
@@ -6140,6 +6346,19 @@ const App = () => {
             const text = await file.text();
             const json = JSON.parse(text);
 
+            if (json.storageSchema === 'compact-scene-v1') {
+                const restored = inflateCompactScenePayload(json);
+                const restoredObjects = restored.objects || [];
+                setObjects(restoredObjects);
+                commitHistory(restoredObjects);
+                if (restored.floors) setFloors(restored.floors);
+                if (restored.currentFloorId) setCurrentFloorId(restored.currentFloorId);
+                if (restored.currentFloorLevelId) setCurrentFloorLevelId(restored.currentFloorLevelId);
+                if (restored.lightingConfig) setLightingConfig(prev => ({ ...prev, ...restored.lightingConfig }));
+                alert(`✅ 紧凑场景导入成功\n对象: ${restoredObjects.length} 个\n模型资源: ${restored.modelAssets?.length || 0} 个`);
+                return;
+            }
+
             // 检测是否为场景导出格式
             if (!json.version || !json.exportTime) {
                 // 不是场景导出格式，尝试作为地图JSON处理
@@ -6152,51 +6371,52 @@ const App = () => {
                 return;
             }
 
-            console.log('📥 开始导入场景:', json.sceneName);
+            console.log('📥 开始导入场景:', json.sceneName, '→ 目标楼层:', currentFloorLevel?.name);
 
             const newObjects = [...objects]; // 保留现有对象
+            // 🔧 辅助函数：处理ID冲突，相同文件重复导入时生成新ID
+            const resolveId = (id) => {
+                const conflict = newObjects.find(o => o.id === id);
+                return conflict ? `${id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` : id;
+            };
 
             // 1. 导入路网数据
             if (json.roadNetwork) {
                 json.roadNetwork.waypoints?.forEach(w => {
-                    const exists = newObjects.find(o => o.id === w.id && o.type === 'waypoint');
-                    if (!exists) {
-                        newObjects.push({
-                            id: w.id,
-                            type: 'waypoint',
-                            name: w.name || '点位',
-                            position: w.position || [0, 0.1, 0],
-                            rotation: w.rotation || [0, 0, 0],
-                            scale: [0.3, 0.3, 0.3],
-                            color: '#FFC107',
-                            opacity: 1,
-                            visible: true,
-                            sourceRefId: w.sourceRefId,
-                            floorLevel: w.floorLevel || currentFloorLevel?.name || '1F',
-                            poseData: w.poseData,
-                            visualConfig: w.visualConfig || { modelUrl: null, customColor: null, customScale: null }
-                        });
-                    }
+                    // 🔧 修复：强制使用当前楼层，不使用 JSON 中存储的旧楼层名
+                    newObjects.push({
+                        id: resolveId(w.id),
+                        type: 'waypoint',
+                        name: w.name || '点位',
+                        position: w.position || [0, 0.1, 0],
+                        rotation: w.rotation || [0, 0, 0],
+                        scale: [0.3, 0.3, 0.3],
+                        color: '#FFC107',
+                        opacity: 1,
+                        visible: true,
+                        sourceRefId: w.sourceRefId,
+                        floorLevel: currentFloorLevel?.name || '1F',  // 强制使用当前楼层
+                        poseData: w.poseData,
+                        visualConfig: w.visualConfig || { modelUrl: null, customColor: null, customScale: null }
+                    });
                 });
 
                 json.roadNetwork.paths?.forEach(p => {
-                    const exists = newObjects.find(o => o.id === p.id && o.type === 'path_line');
-                    if (!exists) {
-                        newObjects.push({
-                            id: p.id,
-                            type: 'path_line',
-                            name: p.name || '路径',
-                            points: p.points || [],
-                            position: [0, 0.05, 0],
-                            rotation: [0, 0, 0],
-                            scale: [1, 1, 1],
-                            color: p.color || '#FF9800',
-                            opacity: p.opacity || 0.8,
-                            visible: true,
-                            sourceRefId: p.sourceRefId,
-                            pathData: p.pathData
-                        });
-                    }
+                    newObjects.push({
+                        id: resolveId(p.id),
+                        type: 'path_line',
+                        name: p.name || '路径',
+                        points: p.points || [],
+                        position: [0, 0.05, 0],
+                        rotation: [0, 0, 0],
+                        scale: [1, 1, 1],
+                        color: p.color || '#FF9800',
+                        opacity: p.opacity || 0.8,
+                        visible: true,
+                        sourceRefId: p.sourceRefId,
+                        pathData: p.pathData,
+                        floorLevel: currentFloorLevel?.name || '1F'  // 路径也标记楼层
+                    });
                 });
 
                 console.log(`  ✅ 路网: ${json.roadNetwork.totalWaypoints || 0} 点位, ${json.roadNetwork.totalPaths || 0} 路径`);
@@ -6205,26 +6425,24 @@ const App = () => {
             // 2. 导入3D模型
             if (json.models3D?.models) {
                 json.models3D.models.forEach(m => {
-                    const exists = newObjects.find(o => o.id === m.id);
-                    if (!exists) {
-                        newObjects.push({
-                            id: m.id,
-                            type: m.type || 'custom_model',
-                            name: m.name || '3D模型',
-                            position: m.position || [0, 0, 0],
-                            rotation: m.rotation || [0, 0, 0],
-                            scale: m.scale || [1, 1, 1],
-                            color: '#ffffff',
-                            opacity: 1,
-                            visible: true,
-                            locked: m.locked || false,
-                            modelUrl: m.modelUrl,
-                            modelScale: m.modelScale || 1,
-                            autoFitToSLAM: m.autoFitToSLAM !== false,
-                            assetId: m.assetId,
-                            floorLevel: currentFloorLevel?.name || '1F'
-                        });
-                    }
+                    // 🔧 修复：相同文件重复导入时生成新ID
+                    newObjects.push({
+                        id: resolveId(m.id),
+                        type: m.type || 'custom_model',
+                        name: m.name || '3D模型',
+                        position: m.position || [0, 0, 0],
+                        rotation: m.rotation || [0, 0, 0],
+                        scale: m.scale || [1, 1, 1],
+                        color: '#ffffff',
+                        opacity: 1,
+                        visible: true,
+                        locked: m.locked || false,
+                        modelUrl: m.modelUrl,
+                        modelScale: m.modelScale || 1,
+                        autoFitToSLAM: m.autoFitToSLAM !== false,
+                        assetId: m.assetId,
+                        floorLevel: currentFloorLevel?.name || '1F'  // 强制使用当前楼层
+                    });
                 });
                 console.log(`  ✅ 3D模型: ${json.models3D.total || json.models3D.models.length} 个`);
             }
@@ -6232,29 +6450,27 @@ const App = () => {
             // 3. 导入建筑物对象
             if (json.buildingObjects?.objects) {
                 json.buildingObjects.objects.forEach(b => {
-                    const exists = newObjects.find(o => o.id === b.id);
-                    if (!exists) {
-                        newObjects.push({
-                            id: b.id,
-                            type: b.type,
-                            name: b.name || '建筑',
-                            position: b.position || [0, 0, 0],
-                            rotation: b.rotation || [0, 0, 0],
-                            scale: b.scale || [1, 1, 1],
-                            color: b.color || '#cccccc',
-                            opacity: b.opacity ?? 1,
-                            visible: b.visible !== false,
-                            locked: b.locked || false,
-                            points: b.points,
-                            thickness: b.thickness,
-                            height: b.height,
-                            tension: b.tension,
-                            closed: b.closed,
-                            modelUrl: b.modelUrl,
-                            modelScale: b.modelScale,
-                            floorLevel: currentFloorLevel?.name || '1F'
-                        });
-                    }
+                    // 🔧 修复：相同文件重复导入时生成新ID
+                    newObjects.push({
+                        id: resolveId(b.id),
+                        type: b.type,
+                        name: b.name || '建筑',
+                        position: b.position || [0, 0, 0],
+                        rotation: b.rotation || [0, 0, 0],
+                        scale: b.scale || [1, 1, 1],
+                        color: b.color || '#cccccc',
+                        opacity: b.opacity ?? 1,
+                        visible: b.visible !== false,
+                        locked: b.locked || false,
+                        points: b.points,
+                        thickness: b.thickness,
+                        height: b.height,
+                        tension: b.tension,
+                        closed: b.closed,
+                        modelUrl: b.modelUrl,
+                        modelScale: b.modelScale,
+                        floorLevel: currentFloorLevel?.name || '1F'  // 强制使用当前楼层
+                    });
                 });
                 console.log(`  ✅ 建筑物: ${json.buildingObjects.total || json.buildingObjects.objects.length} 个`);
             }
@@ -6873,19 +7089,21 @@ const App = () => {
         });
 
         if (multiFloorPreview && currentScene?.floorLevels?.length > 1) {
-            // 多楼层预览模式：从所有来源收集对象
             const allFloorObjects = [];
-            const processedIds = new Set(); // 避免重复添加
+            const processedIds = new Set();
 
-            // 构建楼层名称到索引的映射
+            // Build floor mapping: name -> index, id -> index
             const floorNameToIndex = {};
+            const floorIdToY = {};
             console.log('🏗️ 楼层列表:');
             currentScene.floorLevels.forEach((fl, idx) => {
                 console.log(`  [${idx}] name="${fl.name}", id="${fl.id}"`);
                 floorNameToIndex[fl.name] = idx;
+                floorIdToY[fl.id] = idx * FLOOR_SPACING;
             });
 
-            // 1. 首先从每个楼层的 floorLevel.objects 中加载对象（优先使用保存的楼层信息）
+            // 1. Load objects from each floor's persisted objects[]
+            console.log('🏗️ ALL模式: 加载已保存的楼层对象...');
             currentScene.floorLevels.forEach((floorLevel, floorIndex) => {
                 const savedObjects = floorLevel.objects || [];
                 const yOffset = floorIndex * FLOOR_SPACING;
@@ -6919,24 +7137,31 @@ const App = () => {
                 });
             });
 
-            // 2. 然后添加全局 objects 状态中未被保存的对象
+            // 2. Add global objects with proper floor assignment
+            console.log('🏗️ ALL模式: 添加全局对象, 当前楼层:', currentFloorLevel?.name);
             objects.forEach(obj => {
                 if (processedIds.has(obj.id)) return;
                 processedIds.add(obj.id);
 
-                const floorName = obj.floorLevel || '1F';
-                const floorIndex = floorNameToIndex[floorName] ?? 0;
+                const floorName = obj.floorLevel || currentFloorLevel?.name || '1F';
+                let floorIndex = floorNameToIndex[floorName];
+                // Also try matching by floor level id
+                if (floorIndex === undefined && obj._floorLevelId && floorIdToY[obj._floorLevelId] !== undefined) {
+                    floorIndex = Object.keys(floorNameToIndex).length;
+                }
+                if (floorIndex === undefined) {
+                    // 未匹配的楼层：动态添加映射
+                    floorIndex = Object.keys(floorNameToIndex).length;
+                    floorNameToIndex[floorName] = floorIndex;
+                }
                 const yOffset = floorIndex * FLOOR_SPACING;
                 const isCurrentFloor = currentFloorLevel?.name === floorName;
 
+                console.log('🏗️ ALL模式 添加全局对象:', obj.name, '楼层:', floorName, 'index:', floorIndex, 'yOffset:', yOffset);
+
                 allFloorObjects.push({
                     ...obj,
-                    // 🏢 在多楼层预览时，总是应用Y轴偏移
-                    position: [
-                        obj.position[0],
-                        obj.position[1] + yOffset,
-                        obj.position[2]
-                    ],
+                    position: [ obj.position[0], obj.position[1] + yOffset, obj.position[2] ],
                     _originalY: obj.position[1],
                     _floorIndex: floorIndex,
                     _floorLevelName: floorName,
@@ -7035,6 +7260,13 @@ const App = () => {
             {currentPage === 'home' && (
                 <HomePage onEnterWorkspace={handleEnterWorkspace} />
             )}
+            {currentPage === 'projects' && (
+                <ProjectsPage
+                    workspaceId={workspaceId}
+                    onOpenProject={handleOpenProject}
+                    onBack={handleBackToHome}
+                />
+            )}
             {currentPage === 'editor' && (
         <div className={`flex h-screen w-screen bg-[#080808] text-gray-300 overflow-hidden select-none ${toolMode.startsWith('draw') ? 'cursor-crosshair' : ''}`}>
             {editingAsset && (
@@ -7054,7 +7286,7 @@ const App = () => {
                     <div className="bg-[#161616] w-[600px] rounded-xl border border-[#333] shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a] bg-[#1a1a1a]">
                             <div className="flex items-center gap-2">
-                                <Map size={18} className="text-green-400" />
+                                <MapIcon size={18} className="text-blue-400" />
                                 <span className="text-sm font-bold text-white">选择内置地图</span>
                             </div>
                             <button onClick={() => setShowMapSelector(false)} className="text-gray-500 hover:text-white">
@@ -7067,8 +7299,8 @@ const App = () => {
                                 <div
                                     key={template.id}
                                     className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedMapTemplate === template.id
-                                        ? 'border-green-500 bg-green-900/20'
-                                        : 'border-[#333] bg-[#0f0f0f] hover:border-green-500/50'
+                                        ? 'border-blue-500 bg-blue-900/20'
+                                        : 'border-[#333] bg-[#0f0f0f] hover:border-blue-500/50'
                                         }`}
                                     onClick={() => setSelectedMapTemplate(template.id)}
                                 >
@@ -7078,7 +7310,7 @@ const App = () => {
                                             <p className="text-[11px] text-gray-400">{template.description}</p>
                                         </div>
                                         {selectedMapTemplate === template.id && (
-                                            <Check size={18} className="text-green-400" />
+                                            <Check size={18} className="text-blue-400" />
                                         )}
                                     </div>
                                 </div>
@@ -7095,7 +7327,7 @@ const App = () => {
                             <button
                                 onClick={() => selectedMapTemplate && loadBuiltInMap(selectedMapTemplate)}
                                 disabled={!selectedMapTemplate}
-                                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded hover:from-green-700 hover:to-emerald-700 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded hover:from-blue-700 hover:to-blue-800 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 加载地图
                             </button>
@@ -7442,31 +7674,18 @@ const App = () => {
                                                                 <div className="flex gap-2 mb-2">
                                                                     <button
                                                                         onClick={() => {
-                                                                            switchFloorLevel(floor.id);
-                                                                            document.getElementById('floor-json-upload').click();
+                                                                            openFloorJsonUpload(floor.id);
                                                                         }}
-                                                                        className="flex-1 bg-[#0e0e0e] border border-green-500/50 rounded px-2 py-1.5 flex items-center gap-1.5 hover:bg-green-900/10 transition-all cursor-pointer"
+                                                                        className="flex-1 bg-[#0e0e0e] border border-blue-500/50 rounded px-2 py-1.5 flex items-center gap-1.5 hover:bg-blue-900/10 transition-all cursor-pointer"
                                                                         title="点击重新上传"
                                                                     >
-                                                                        <Check size={12} className="text-green-400" />
-                                                                        <span className="text-[10px] text-green-400 truncate">{floor.baseMapData.name || '地图文件.json'}</span>
+                                                                        <Check size={12} className="text-blue-400" />
+                                                                        <span className="text-[10px] text-blue-400 truncate">{floor.baseMapData.name || '地图文件.json'}</span>
                                                                     </button>
                                                                     <button
                                                                         onClick={() => {
                                                                             if (confirm('确定清除此楼层的数据源吗？')) {
-                                                                                setFloors(prev => prev.map(scene => {
-                                                                                    if (scene.id === currentFloorId) {
-                                                                                        return {
-                                                                                            ...scene,
-                                                                                            floorLevels: scene.floorLevels.map(fl =>
-                                                                                                fl.id === floor.id
-                                                                                                    ? { ...fl, waypointsData: null, pathsData: null, objects: [], baseMapData: null }
-                                                                                                    : fl
-                                                                                            )
-                                                                                        };
-                                                                                    }
-                                                                                    return scene;
-                                                                                }));
+                                                                                clearFloorMapData(floor.id);
                                                                             }
                                                                         }}
                                                                         className="px-2 py-1.5 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition-all"
@@ -7512,8 +7731,7 @@ const App = () => {
                                                         ) : (
                                                             <button
                                                                 onClick={() => {
-                                                                    switchFloorLevel(floor.id);
-                                                                    document.getElementById('floor-json-upload').click();
+                                                                    openFloorJsonUpload(floor.id);
                                                                 }}
                                                                 className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] text-gray-400 hover:text-white hover:bg-[#222] rounded transition-all border border-dashed border-[#333]"
                                                             >
@@ -8016,8 +8234,8 @@ const App = () => {
                                                     {/* 统计信息 */}
                                                     <div className="pt-2 border-t border-[#2a2a2a] text-[10px] text-gray-500 space-y-0.5">
                                                         <div>对象数量: {floor.objects?.length || 0}</div>
-                                                        {floor.waypointsData && <div className="text-green-400">✓ 点位: {floor.waypointsData.length}</div>}
-                                                        {floor.pathsData && <div className="text-green-400">✓ 路径: {floor.pathsData.length}</div>}
+                                                        {floor.waypointsData && <div className="text-blue-400">✓ 点位: {floor.waypointsData.length}</div>}
+                                                        {floor.pathsData && <div className="text-blue-400">✓ 路径: {floor.pathsData.length}</div>}
                                                     </div>
                                                 </div>
                                             )}
@@ -8165,7 +8383,7 @@ const App = () => {
                                 setPendingJsonData(jsonData);
                                 setShowJsonUploadModeDialog(true);
                             } else {
-                                loadMapFromJSON(jsonData, 'replace');
+                                loadMapFromJSON(jsonData, jsonUploadMode);
                                 alert('✅ 数据源加载成功！');
                             }
                         } else if (ext === 'smap') {
@@ -8193,7 +8411,7 @@ const App = () => {
                                 setPendingJsonData(smapData);
                                 setShowJsonUploadModeDialog(true);
                             } else {
-                                loadMapFromJSON(smapData, 'replace');
+                                loadMapFromJSON(smapData, jsonUploadMode);
                                 alert(`✅ SMAP地图加载成功！\n地图名称: ${smapData.header?.mapName || file.name}\n分辨率: ${smapData.header?.resolution || 'N/A'}m`);
                             }
                         } else if (['png', 'jpg', 'jpeg'].includes(ext)) {
@@ -8414,7 +8632,7 @@ const App = () => {
                                         {jsonUploadMode === 'append' && <div className="w-2 h-2 rounded-full bg-blue-500" />}
                                     </div>
                                     <div>
-                                        <span className="text-sm font-medium text-green-400">追加模式</span>
+                                        <span className="text-sm font-medium text-blue-400">追加模式</span>
                                         <p className="text-xs text-gray-500">保留现有内容，只添加新的底图、点位和路径</p>
                                     </div>
                                 </label>
@@ -8567,7 +8785,7 @@ const App = () => {
                                     <div className="pr-8">
                                         <div className="flex items-center gap-2 mb-2">
                                             <h4 className="text-sm font-bold text-white">保留孪生绑定</h4>
-                                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">推荐</span>
+                                            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">推荐</span>
                                         </div>
                                         <p className="text-xs text-gray-400 leading-relaxed">
                                             • 保留已配置的 3D 模型、颜色、交互逻辑<br />
@@ -8796,7 +9014,7 @@ const App = () => {
                                         <div>
                                             <div className="text-[10px] font-bold text-gray-600 uppercase mb-2 px-1">SLAM 地图</div>
                                             <button onClick={() => setShowMapSelector(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-md bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transition-all text-white border border-green-500/50 mb-2">
-                                                <Map size={16} />
+                                                <MapIcon size={16} />
                                                 <span className="text-[11px] font-bold">选择内置地图</span>
                                             </button>
                                             <button onClick={() => setShowSLAMUpload(true)} className="w-full flex items-center justify-center gap-2 p-2 rounded-md bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all text-white border border-blue-500/50">
@@ -8900,6 +9118,17 @@ const App = () => {
 
             {/* Middle: Canvas */}
             <div className="flex-1 relative bg-[#09090b]">
+                {/* ← 返回方案列表 */}
+                {!isPreviewMode && (
+                    <button
+                        onClick={handleBackToProjects}
+                        className="absolute top-4 left-4 z-20 glass-panel rounded-lg p-2 text-gray-500 hover:text-white hover:bg-[#1a1a1a] transition-all flex items-center gap-1.5 shadow-lg"
+                        title="返回方案列表"
+                    >
+                        <ArrowLeft size={16} />
+                        <span className="text-[10px] hidden sm:inline">方案列表</span>
+                    </button>
+                )}
                 {/* ... Toolbars ... */}
                 {!isPreviewMode && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 glass-panel rounded-xl p-1 flex gap-1 shadow-2xl bg-[#09090b]">
@@ -9011,6 +9240,10 @@ const App = () => {
                                         导出 JSON 文件
                                     </button>
                                     <div className="border-t border-[#2a2a2a] mt-3 pt-3">
+                                        <div className="flex gap-1 mb-2">
+                                            <button onClick={() => setImportMode('currentFloor')} className={`flex-1 py-1.5 rounded text-[9px] font-medium transition-colors ${importMode === 'currentFloor' ? 'bg-blue-600 text-white' : 'bg-[#1a1a1a] text-gray-500 border border-[#2a2a2a]'}`}>📂 当前楼层</button>
+                                            <button onClick={() => setImportMode('global')} className={`flex-1 py-1.5 rounded text-[9px] font-medium transition-colors ${importMode === 'global' ? 'bg-blue-600 text-white' : 'bg-[#1a1a1a] text-gray-500 border border-[#2a2a2a]'}`}>🌐 全局场景</button>
+                                        </div>
                                         <button
                                             onClick={() => sceneImportRef.current?.click()}
                                             className="w-full py-2 bg-[#222] hover:bg-[#333] text-gray-300 text-xs rounded-lg transition-colors flex items-center justify-center gap-2 border border-[#333]"
@@ -9018,6 +9251,7 @@ const App = () => {
                                             <Upload size={14} />
                                             导入场景文件
                                         </button>
+                                        <p className="text-[8px] text-gray-600 mt-1 text-center">JSON, SMAP — {importMode === 'currentFloor' ? '导入到当前激活楼层' : '替换全部场景'}</p>
                                         <input
                                             type="file"
                                             ref={sceneImportRef}
@@ -9043,7 +9277,7 @@ const App = () => {
                                                     }
                                                 }}
                                                 placeholder="输入ID或留空"
-                                                className="flex-1 bg-[#0f0f0f] border border-[#333] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-emerald-500"
+                                                className="flex-1 bg-[#0f0f0f] border border-[#333] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-blue-500"
                                             />
                                             <button
                                                 onClick={() => {
@@ -9066,14 +9300,14 @@ const App = () => {
                                                         alert('✅ 链接已复制！\n\n在其他设备打开此链接即可同步场景。');
                                                     });
                                                 }}
-                                                className="w-full mt-1.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-[10px] rounded-lg transition-colors flex items-center justify-center gap-1 border border-emerald-600/30"
+                                                className="w-full mt-1.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[10px] rounded-lg transition-colors flex items-center justify-center gap-1 border border-blue-600/30"
                                             >
                                                 <Copy size={12} />
                                                 复制同步链接
                                             </button>
                                         )}
                                         {workspaceId && syncStatus === 'synced' && (
-                                            <div className="text-[9px] text-emerald-500 mt-1 text-center">
+                                            <div className="text-[9px] text-blue-400 mt-1 text-center">
                                                 ✅ 已同步 · 在其他设备打开链接即可加载
                                             </div>
                                         )}
@@ -9138,8 +9372,17 @@ const App = () => {
                     </div>
                 )}
 
-                {/* Top Right Controls: Preview, Path Animation, and Save Button */}
+                {/* Top Right Controls: Back, Preview, Path Animation, and Save Button */}
                 <div className="absolute top-4 right-6 z-20 flex gap-2">
+                    {/* 返回方案列表按钮 */}
+                    <button
+                        onClick={handleBackToProjects}
+                        className="glass-panel px-2.5 py-1.5 bg-[#080808] rounded-lg transition-colors text-gray-400 hover:text-white hover:bg-[#222] flex items-center gap-1.5"
+                        title="返回方案列表"
+                    >
+                        <ArrowLeft size={16} />
+                        <span className="text-xs font-medium">返回</span>
+                    </button>
                     {/* 全局路径预览控制 */}
                     <button
                         onClick={() => {
@@ -9350,7 +9593,7 @@ const App = () => {
                                 </div>
                                 <button
                                     onClick={() => setLightingConfig(prev => ({ ...prev, performanceMode: !prev.performanceMode }))}
-                                    className={`w-10 h-5 rounded-full transition-colors relative ${lightingConfig.performanceMode ? 'bg-green-600' : 'bg-[#333]'}`}
+                                    className={`w-10 h-5 rounded-full transition-colors relative ${lightingConfig.performanceMode ? 'bg-blue-600' : 'bg-[#333]'}`}
                                 >
                                     <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${lightingConfig.performanceMode ? 'left-5' : 'left-0.5'}`} />
                                 </button>
@@ -9654,7 +9897,7 @@ const App = () => {
                                                     }
                                                 }))}
                                                 className={`relative w-9 h-5 rounded-full cursor-pointer transition-colors ${lightingConfig.directionalLights?.[key]?.enabled
-                                                    ? 'bg-green-500'
+                                                    ? 'bg-blue-500'
                                                     : 'bg-gray-600'
                                                     }`}
                                             >
@@ -10080,9 +10323,8 @@ const App = () => {
                                 })()}
 
 
-                                {/* Render SLAM Base Map */}
+                                {/* Render SLAM Base Map (non-map_image types only — MapImage handles map_image) */}
                                 {(() => {
-                                    // 计算活动楼层（用于底图透明度）
                                     let activeFloorNameForBaseMap = null;
                                     if (multiFloorPreview && selectedIds.length > 0) {
                                         const selectedObj = displayObjects.find(o => selectedIds[0] === o.id);
@@ -10121,7 +10363,7 @@ const App = () => {
                                         activeFloorNameForMapImg = selectedObj?._floorLevelName || null;
                                     }
 
-                                    const mapImages = displayObjects.filter(obj => obj.type === 'map_image' && obj.visible !== false);
+                                    const mapImages = displayObjects.filter(obj => obj.type === 'map_image' && obj.visible !== false && !obj.isBaseMap);
                                     console.log('🎨 渲染地图图片数量:', mapImages.length, mapImages.map(m => ({ name: m.name, visible: m.visible, imageData: !!m.imageData })));
                                     return mapImages.map(mapImg => {
                                         const shouldDim = multiFloorPreview &&
@@ -10230,7 +10472,51 @@ const App = () => {
                                         });
                                     }
 
-                                    return displayObjects.filter(obj => !obj.isBaseMap && obj.type !== 'map_image' && obj.type !== 'waypoint' && obj.type !== 'path_line' && obj.type !== 'group').map(obj => {
+                                    const renderableObjects = displayObjects.filter(obj => !obj.isBaseMap && obj.type !== 'map_image' && obj.type !== 'waypoint' && obj.type !== 'path_line' && obj.type !== 'group');
+                                    const instancedCounts = {};
+                                    renderableObjects.forEach(obj => {
+                                        if (!obj.modelUrl || obj.locked || selectedIds.includes(obj.id)) return;
+                                        if (obj.autoFitToSLAM !== false) return;
+                                        if (!(obj.type === 'custom_model' || obj.type === 'cnc')) return;
+                                        const key = `${obj.modelUrl}|${obj.modelScale || 1}|${obj.autoFitToSLAM !== false}`;
+                                        instancedCounts[key] = (instancedCounts[key] || 0) + 1;
+                                    });
+                                    const isInstancedObject = (obj) => {
+                                        if (!obj.modelUrl || obj.locked || selectedIds.includes(obj.id)) return false;
+                                        if (obj.autoFitToSLAM !== false) return false;
+                                        if (!(obj.type === 'custom_model' || obj.type === 'cnc')) return false;
+                                        const key = `${obj.modelUrl}|${obj.modelScale || 1}|${obj.autoFitToSLAM !== false}`;
+                                        return instancedCounts[key] > 1;
+                                    };
+                                    const handleObjectSelect = (id, shiftKey) => {
+                                        // 🔒 多楼层预览模式下且存在多个楼层时禁止编辑
+                                        if (multiFloorPreview && currentScene?.floorLevels?.length > 1) {
+                                            console.log('⚠️ ALL模式下不允许编辑，请切换到具体楼层');
+                                            return;
+                                        }
+
+                                        if (shiftKey) {
+                                            // Shift+Click: 多选模式
+                                            const newIds = selectedIds.includes(id)
+                                                ? selectedIds.filter(sid => sid !== id)
+                                                : [...selectedIds, id];
+                                            setSelectedIds(newIds);
+                                            setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
+                                        } else {
+                                            // 普通点击: 单选
+                                            setSelectedId(id);
+                                            setSelectedIds([id]);
+                                        }
+                                    };
+
+                                    return (
+                                        <>
+                                            <InstancedModelRenderer
+                                                objects={renderableObjects}
+                                                selectedIds={selectedIds}
+                                                onSelect={handleObjectSelect}
+                                            />
+                                            {renderableObjects.filter(obj => !isInstancedObject(obj)).map(obj => {
                                         // 计算是否应该降低透明度
                                         const shouldDim = multiFloorPreview &&
                                             activeFloorNameForDim &&
@@ -10245,26 +10531,7 @@ const App = () => {
                                                 slamMapHeight={slamMapHeight}
                                                 isSelected={selectedIds.includes(obj.id) && !isPreviewMode}
                                                 isEditingPoints={isEditingPoints && selectedIds.includes(obj.id)}
-                                                onSelect={(id, shiftKey) => {
-                                                    // 🔒 多楼层预览模式下且存在多个楼层时禁止编辑
-                                                    if (multiFloorPreview && currentScene?.floorLevels?.length > 1) {
-                                                        console.log('⚠️ ALL模式下不允许编辑，请切换到具体楼层');
-                                                        return;
-                                                    }
-
-                                                    if (shiftKey) {
-                                                        // Shift+Click: 多选模式
-                                                        const newIds = selectedIds.includes(id)
-                                                            ? selectedIds.filter(sid => sid !== id)
-                                                            : [...selectedIds, id];
-                                                        setSelectedIds(newIds);
-                                                        setSelectedId(newIds.length > 0 ? newIds[newIds.length - 1] : null);
-                                                    } else {
-                                                        // 普通点击: 单选
-                                                        setSelectedId(id);
-                                                        setSelectedIds([id]);
-                                                    }
-                                                }}
+                                                onSelect={handleObjectSelect}
                                                 transformMode={selectedIds.length > 1 ? null : (toolMode === 'select' ? transformMode : null)}
                                                 onTransformEnd={handleTransformEnd}
                                                 onUpdatePoints={updatePoints}
@@ -10274,7 +10541,9 @@ const App = () => {
                                                 dimmed={shouldDim}
                                             />
                                         );
-                                    });
+                                    })}
+                                        </>
+                                    );
                                 })()}
 
                                 {/* 路径动画 - 播放所有MCR的动画 */}

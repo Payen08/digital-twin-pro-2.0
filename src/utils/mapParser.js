@@ -10,9 +10,11 @@ import { v4 as uuidv4 } from 'uuid';
  * @param {string|object} jsonInput - JSON 字符串或对象
  * @returns {object} { baseMap, entities, paths }
  */
-export const parseFullMapJson = (jsonInput) => {
+export const parseFullMapJson = (jsonInput, options = {}) => {
     console.log('🔍 [mapParser] parseFullMapJson 被调用');
     const data = typeof jsonInput === 'string' ? JSON.parse(jsonInput) : jsonInput;
+    const targetFloorLevel = options.targetFloorLevel || null;
+    const targetFloorLevelId = options.targetFloorLevelId || null;
     
     // 1. 解析底图 (SLAM Map)
     let baseMap = null;
@@ -42,6 +44,8 @@ export const parseFullMapJson = (jsonInput) => {
                 opacity: 0.8,
                 visible: true,
                 locked: true,
+                floorLevel: targetFloorLevel || undefined,
+                _floorLevelId: targetFloorLevelId,
                 imageData: content.startsWith('data:') || content.startsWith('http') 
                     ? content 
                     : `data:image/png;base64,${content}`,
@@ -65,6 +69,8 @@ export const parseFullMapJson = (jsonInput) => {
             opacity: 0.8,
             visible: true,
             locked: true,
+            floorLevel: targetFloorLevel || undefined,
+            _floorLevelId: targetFloorLevelId,
             imageData: data.imageData,
             mapMetadata: data
         };
@@ -74,6 +80,7 @@ export const parseFullMapJson = (jsonInput) => {
     const entities = [];
     const paths = [];
     const poseLookup = {}; // 辅助查找表
+    const poseFloorLookup = {}; // 点位名 -> 楼层
     const floorLevelsMap = {}; // 楼层信息收集
     
     const topology = data.graphTopologys?.[0];
@@ -107,6 +114,9 @@ export const parseFullMapJson = (jsonInput) => {
                 floorLevel = '1F';
                 floorHeight = 0;
             }
+
+            const assignedFloorLevel = targetFloorLevel || floorLevel;
+            poseFloorLookup[pose.name] = assignedFloorLevel;
             
             // 收集楼层信息
             if (mapFileId) {
@@ -114,8 +124,8 @@ export const parseFullMapJson = (jsonInput) => {
                     floorLevelsMap[mapFileId] = {
                         id: `floor-${mapFileId.substring(0, 8)}`,
                         mapFileId: mapFileId,
-                        name: floorLevel,
-                        height: floorHeight,
+                        name: assignedFloorLevel,
+                        height: targetFloorLevel ? 0 : floorHeight,
                         visible: true,
                         poseCount: 0,
                         objects: []
@@ -123,7 +133,7 @@ export const parseFullMapJson = (jsonInput) => {
                 }
                 floorLevelsMap[mapFileId].poseCount++;
                 // 更新楼层名称为出现最多的
-                if (floorLevel !== '1F') {
+                if (!targetFloorLevel && floorLevel !== '1F') {
                     floorLevelsMap[mapFileId].name = floorLevel;
                     floorLevelsMap[mapFileId].height = floorHeight;
                 }
@@ -144,7 +154,8 @@ export const parseFullMapJson = (jsonInput) => {
                 visible: true,
                 poseData: pose,
                 mapFileId: mapFileId, // 保存 mapFileId 用于楼层关联
-                floorLevel: floorLevel, // 保存推断的楼层
+                floorLevel: assignedFloorLevel, // 导入时优先绑定当前楼层
+                _floorLevelId: targetFloorLevelId,
                 // 视觉配置（可被用户自定义）
                 visualConfig: {
                     modelUrl: null, // 默认方块
@@ -162,6 +173,7 @@ export const parseFullMapJson = (jsonInput) => {
             const end = poseLookup[path.targetName];
             
             if (start && end) {
+                const inferredPathFloor = poseFloorLookup[path.sourceName] || poseFloorLookup[path.targetName] || '1F';
                 paths.push({
                     id: uuidv4(),
                     sourceRefId: String(path.uid), // 路径的原始ID
@@ -177,6 +189,8 @@ export const parseFullMapJson = (jsonInput) => {
                     color: path.bidirectional ? '#00FF00' : '#FF9800',
                     opacity: 0.8,
                     visible: true,
+                    floorLevel: targetFloorLevel || inferredPathFloor,
+                    _floorLevelId: targetFloorLevelId,
                     pathData: path
                 });
             }

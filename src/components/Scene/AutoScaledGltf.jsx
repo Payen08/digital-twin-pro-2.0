@@ -20,7 +20,22 @@ const AutoScaledGltf = ({
     const [calculatedScale, setCalculatedScale] = useState(1);
 
     // 克隆场景以避免多次使用同一 GLTF 时的问题
-    const clonedScene = useMemo(() => scene.clone(), [scene]);
+    const clonedScene = useMemo(() => {
+        const copy = scene.clone();
+        // 🔑 修复透明材质：遍历所有 mesh，设置 depthWrite=false
+        copy.traverse((child) => {
+            if (child.isMesh && child.material) {
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+                materials.forEach(mat => {
+                    if (mat.transparent || mat.opacity < 1) {
+                        mat.depthWrite = false;
+                        mat.needsUpdate = true;
+                    }
+                });
+            }
+        });
+        return copy;
+    }, [scene]);
 
     useEffect(() => {
         if (!clonedScene || !autoScale || !targetWidth || !targetHeight) {
